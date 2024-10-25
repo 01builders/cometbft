@@ -2,6 +2,7 @@ package state
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/cometbft/cometbft/types"
 	cmttime "github.com/cometbft/cometbft/types/time"
 )
+
+var emptyhash = sha256.Sum256([]byte(""))
 
 // -----------------------------------------------------
 // Validate block
@@ -53,11 +56,15 @@ func validateBlock(state State, block *types.Block) error {
 	}
 
 	// Validate app info
-	if !bytes.Equal(block.AppHash, state.AppHash) {
-		return fmt.Errorf("wrong Block.Header.AppHash.  Expected %X, got %v. Check ABCI app for non-determinism",
-			state.AppHash,
-			block.AppHash,
-		)
+	if !bytes.Equal(block.AppHash, emptyhash[:]) { // TODO: use sha256 of empty string as empty apphash
+		if !bytes.Equal(block.AppHash, state.AppHash) {
+			return fmt.Errorf("wrong Block.Header.AppHash.  Expected %X, got %v. Check ABCI app for non-determinism",
+				state.AppHash,
+				block.AppHash,
+			)
+		}
+	} else {
+		fmt.Println("empty app hash, skip verification of app hash when app hash is empty")
 	}
 	if !bytes.Equal(block.ConsensusHash, state.ConsensusParams.Hash()) {
 		return fmt.Errorf("wrong Block.Header.ConsensusHash.  Expected %X, got %v",
