@@ -1,0 +1,38 @@
+diff --git a/consensus/replay_file.go b/consensus/replay_file.go
+index 03096fd74..44cee2187 100644
+--- a/consensus/replay_file.go
++++ b/consensus/replay_file.go
+@@ -29,7 +29,7 @@ const (
+ //--------------------------------------------------------
+ // replay messages interactively or all at once
+ 
+-// replay the wal file
++// RunReplayFile replays the wal file
+ func RunReplayFile(config cfg.BaseConfig, csConfig *cfg.ConsensusConfig, console bool) {
+ 	consensusState := newConsensusStateForReplay(config, csConfig)
+ 
+@@ -38,7 +38,7 @@ func RunReplayFile(config cfg.BaseConfig, csConfig *cfg.ConsensusConfig, console
+ 	}
+ }
+ 
+-// Replay msgs in file or start the console
++// ReplayFile replays msgs in file or start the console
+ func (cs *State) ReplayFile(file string, console bool) error {
+ 
+ 	if cs.IsRunning() {
+@@ -324,13 +324,13 @@ func newConsensusStateForReplay(config cfg.BaseConfig, csConfig *cfg.ConsensusCo
+ 
+ 	handshaker := NewHandshaker(stateStore, state, blockStore, gdoc)
+ 	handshaker.SetEventBus(eventBus)
+-	err = handshaker.Handshake(proxyApp)
++	_, err = handshaker.Handshake(proxyApp)
+ 	if err != nil {
+ 		cmtos.Exit(fmt.Sprintf("Error on handshake: %v", err))
+ 	}
+ 
+ 	mempool, evpool := emptyMempool{}, sm.EmptyEvidencePool{}
+-	blockExec := sm.NewBlockExecutor(stateStore, log.TestingLogger(), proxyApp.Consensus(), mempool, evpool)
++	blockExec := sm.NewBlockExecutor(stateStore, log.TestingLogger(), proxyApp.Consensus(), mempool, evpool, sm.WithBlockStore(blockStore))
+ 
+ 	consensusState := NewState(csConfig, state.Copy(), blockExec,
+ 		blockStore, mempool, evpool)

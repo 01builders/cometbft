@@ -1,0 +1,12 @@
+diff --git a/rpc/core/dev.go b/rpc/core/dev.go
+index b70f5f1e1..538365352 100644
+--- a/rpc/core/dev.go
++++ b/rpc/core/dev.go
+@@ -7,6 +7,6 @@ import (
+ 
+ // UnsafeFlushMempool removes all transactions from the mempool.
+ func UnsafeFlushMempool(ctx *rpctypes.Context) (*ctypes.ResultUnsafeFlushMempool, error) {
+-	env.Mempool.Flush()
++	GetEnvironment().Mempool.Flush()
+ 	return &ctypes.ResultUnsafeFlushMempool{}, nil
+ }

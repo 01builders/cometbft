@@ -1,0 +1,12 @@
+diff --git a/libs/flowrate/util.go b/libs/flowrate/util.go
+index b33ddc701..51dfb4756 100644
+--- a/libs/flowrate/util.go
++++ b/libs/flowrate/util.go
+@@ -48,6 +48,7 @@ func percentOf(x, total float64) Percent {
+ 	if x < 0 || total <= 0 {
+ 		return 0
+ 	} else if p := round(x / total * 1e5); p <= math.MaxUint32 {
++		//nolint:gosec
+ 		return Percent(p)
+ 	}
+ 	return Percent(math.MaxUint32)

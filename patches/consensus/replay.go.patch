@@ -1,0 +1,110 @@
+diff --git a/consensus/replay.go b/consensus/replay.go
+index 7c6d55e1b..bb261c3b0 100644
+--- a/consensus/replay.go
++++ b/consensus/replay.go
+@@ -156,8 +156,8 @@ LOOP:
+ 		}
+ 
+ 		// NOTE: since the priv key is set when the msgs are received
+-		// it will attempt to eg double sign but we can just ignore it
+-		// since the votes will be replayed and we'll get to the next step
++		// it will attempt to e.g., double sign, but we can just ignore it
++		// since the votes will be replayed, and we'll get to the next step
+ 		if err := cs.readReplayMessage(msg, nil); err != nil {
+ 			return err
+ 		}
+@@ -239,49 +239,47 @@ func (h *Handshaker) NBlocks() int {
+ }
+ 
+ // TODO: retry the handshake/replay if it fails ?
+-func (h *Handshaker) Handshake(proxyApp proxy.AppConns) error {
++func (h *Handshaker) Handshake(proxyApp proxy.AppConns) (string, error) {
+ 	return h.HandshakeWithContext(context.TODO(), proxyApp)
+ }
+ 
+ // HandshakeWithContext is cancellable version of Handshake
+-func (h *Handshaker) HandshakeWithContext(ctx context.Context, proxyApp proxy.AppConns) error {
++func (h *Handshaker) HandshakeWithContext(ctx context.Context, proxyApp proxy.AppConns) (string, error) {
+ 
+ 	// Handshake is done via ABCI Info on the query conn.
+ 	res, err := proxyApp.Query().InfoSync(proxy.RequestInfo)
+ 	if err != nil {
+-		return fmt.Errorf("error calling Info: %v", err)
++		return "", fmt.Errorf("error calling Info: %v", err)
+ 	}
+ 
+ 	blockHeight := res.LastBlockHeight
+ 	if blockHeight < 0 {
+-		return fmt.Errorf("got a negative last block height (%d) from the app", blockHeight)
++		return "", fmt.Errorf("got a negative last block height (%d) from the app", blockHeight)
+ 	}
+ 	appHash := res.LastBlockAppHash
+ 
+-	h.logger.Info("ABCI Handshake App Info",
+-		"height", blockHeight,
+-		"hash", appHash,
+-		"software-version", res.Version,
+-		"protocol-version", res.AppVersion,
+-	)
+-
+-	// Only set the version if there is no existing state.
+-	if h.initialState.LastBlockHeight == 0 {
++	appVersion := h.initialState.Version.Consensus.App
++	// set app version if it's not set via genesis
++	if h.initialState.LastBlockHeight == 0 && appVersion == 0 && res.AppVersion != 0 {
++		appVersion = res.AppVersion
+ 		h.initialState.Version.Consensus.App = res.AppVersion
+ 	}
+ 
+ 	// Replay blocks up to the latest in the blockstore.
+ 	appHash, err = h.ReplayBlocksWithContext(ctx, h.initialState, appHash, blockHeight, proxyApp)
+ 	if err != nil {
+-		return fmt.Errorf("error on replay: %v", err)
++		return "", fmt.Errorf("error on replay: %v", err)
+ 	}
+ 
+ 	h.logger.Info("Completed ABCI Handshake - CometBFT and App are synced",
+-		"appHeight", blockHeight, "appHash", appHash)
++		"appHeight", blockHeight,
++		"appHash", appHash,
++		"appVersion", appVersion,
++	)
+ 
+ 	// TODO: (on restart) replay mempool
+ 
+-	return nil
++	return res.Version, nil
+ }
+ 
+ // ReplayBlocks replays all blocks since appBlockHeight and ensures the result
+@@ -364,6 +362,11 @@ func (h *Handshaker) ReplayBlocksWithContext(
+ 				state.ConsensusParams = types.UpdateConsensusParams(state.ConsensusParams, res.ConsensusParams)
+ 				state.Version.Consensus.App = state.ConsensusParams.Version.AppVersion
+ 			}
++
++			// update timeouts based on the InitChainSync response
++			state.TimeoutCommit = res.Timeouts.TimeoutCommit
++			state.TimeoutPropose = res.Timeouts.TimeoutPropose
++
+ 			// We update the last results hash with the empty hash, to conform with RFC-6962.
+ 			state.LastResultsHash = merkle.HashFromByteSlices(nil)
+ 			if err := h.stateStore.Save(state); err != nil {
+@@ -516,15 +519,16 @@ func (h *Handshaker) replayBlocks(
+ // ApplyBlock on the proxyApp with the last block.
+ func (h *Handshaker) replayBlock(state sm.State, height int64, proxyApp proxy.AppConnConsensus) (sm.State, error) {
+ 	block := h.store.LoadBlock(height)
++	seenCommit := h.store.LoadSeenCommit(height)
+ 	meta := h.store.LoadBlockMeta(height)
+ 
+ 	// Use stubs for both mempool and evidence pool since no transactions nor
+ 	// evidence are needed here - block already exists.
+-	blockExec := sm.NewBlockExecutor(h.stateStore, h.logger, proxyApp, emptyMempool{}, sm.EmptyEvidencePool{})
++	blockExec := sm.NewBlockExecutor(h.stateStore, h.logger, proxyApp, emptyMempool{}, sm.EmptyEvidencePool{}, sm.WithBlockStore(h.store))
+ 	blockExec.SetEventBus(h.eventBus)
+ 
+ 	var err error
+-	state, _, err = blockExec.ApplyBlock(state, meta.BlockID, block)
++	state, _, err = blockExec.ApplyBlock(state, meta.BlockID, block, seenCommit)
+ 	if err != nil {
+ 		return sm.State{}, err
+ 	}

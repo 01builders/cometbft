@@ -1,0 +1,13 @@
+diff --git a/test/e2e/node/main.go b/test/e2e/node/main.go
+index 1105cb795..8a02ed733 100644
+--- a/test/e2e/node/main.go
++++ b/test/e2e/node/main.go
+@@ -130,6 +130,8 @@ func startNode(cfg *Config) error {
+ 		return fmt.Errorf("failed to setup config: %w", err)
+ 	}
+ 
++	cmtcfg.Instrumentation.TraceType = "local"
++
+ 	n, err := node.NewNode(cmtcfg,
+ 		privval.LoadOrGenFilePV(cmtcfg.PrivValidatorKeyFile(), cmtcfg.PrivValidatorStateFile()),
+ 		nodeKey,

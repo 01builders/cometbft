@@ -1,0 +1,139 @@
+diff --git a/consensus/mempool_test.go b/consensus/mempool_test.go
+index 678091bcf..d6c4e09e5 100644
+--- a/consensus/mempool_test.go
++++ b/consensus/mempool_test.go
+@@ -14,6 +14,7 @@ import (
+ 
+ 	"github.com/tendermint/tendermint/abci/example/code"
+ 	abci "github.com/tendermint/tendermint/abci/types"
++	cfg "github.com/tendermint/tendermint/config"
+ 	mempl "github.com/tendermint/tendermint/mempool"
+ 	sm "github.com/tendermint/tendermint/state"
+ 	"github.com/tendermint/tendermint/types"
+@@ -74,7 +75,7 @@ func TestMempoolProgressInHigherRound(t *testing.T) {
+ 	timeoutCh := subscribe(cs.eventBus, types.EventQueryTimeoutPropose)
+ 	cs.setProposal = func(proposal *types.Proposal) error {
+ 		if cs.Height == 2 && cs.Round == 0 {
+-			// dont set the proposal in round 0 so we timeout and
++			// don't set the proposal in round 0 so we timeout and
+ 			// go to next round
+ 			cs.Logger.Info("Ignoring set proposal at height 2, round 0")
+ 			return nil
+@@ -90,7 +91,11 @@ func TestMempoolProgressInHigherRound(t *testing.T) {
+ 	round = 0
+ 
+ 	ensureNewRound(newRoundCh, height, round) // first round at next height
+-	deliverTxsRange(cs, 0, 1)                 // we deliver txs, but dont set a proposal so we get the next round
++	deliverTxsRange(cs, 0, 1)                 // we deliver txs, but don't set a proposal so we get the next round
++	// The use of cs.config.TimeoutPropose.Nanoseconds() as the timeout propose is acceptable in this test case, the following line.
++	// Even though timeouts are version-dependent, cs is created with an empty previous state in this scenario.
++	// As there's no timeout propose in the previous state, we default to the timeout propose in the config.
++	// This makes the test case valid.
+ 	ensureNewTimeout(timeoutCh, height, round, cs.config.TimeoutPropose.Nanoseconds())
+ 
+ 	round++                                   // moving to the next round
+@@ -136,6 +141,8 @@ func TestMempoolTxConcurrentWithCommit(t *testing.T) {
+ 
+ func TestMempoolRmBadTx(t *testing.T) {
+ 	state, privVals := randGenesisState(1, false, 10)
++	config = ResetConfig("consensus_mempool_rm_bad_tx")
++	config.Mempool.Version = cfg.MempoolV2
+ 	app := NewCounterApplication()
+ 	blockDB := dbm.NewMemDB()
+ 	stateStore := sm.NewStore(blockDB, sm.StoreOptions{DiscardABCIResponses: false})
+@@ -154,22 +161,12 @@ func TestMempoolRmBadTx(t *testing.T) {
+ 	assert.True(t, len(resCommit.Data) > 0)
+ 
+ 	emptyMempoolCh := make(chan struct{})
+-	checkTxRespCh := make(chan struct{})
+ 	go func() {
+ 		// Try to send the tx through the mempool.
+ 		// CheckTx should not err, but the app should return a bad abci code
+ 		// and the tx should get removed from the pool
+-		err := assertMempool(cs.txNotifier).CheckTx(txBytes, func(r *abci.Response) {
+-			if r.GetCheckTx().Code != code.CodeTypeBadNonce {
+-				t.Errorf("expected checktx to return bad nonce, got %v", r)
+-				return
+-			}
+-			checkTxRespCh <- struct{}{}
+-		}, mempl.TxInfo{})
+-		if err != nil {
+-			t.Errorf("error after CheckTx: %v", err)
+-			return
+-		}
++		err := assertMempool(cs.txNotifier).CheckTx(txBytes, nil, mempl.TxInfo{})
++		require.Error(t, err)
+ 
+ 		// check for the tx
+ 		for {
+@@ -182,18 +179,8 @@ func TestMempoolRmBadTx(t *testing.T) {
+ 		}
+ 	}()
+ 
+-	// Wait until the tx returns
+-	ticker := time.After(time.Second * 5)
+-	select {
+-	case <-checkTxRespCh:
+-		// success
+-	case <-ticker:
+-		t.Errorf("timed out waiting for tx to return")
+-		return
+-	}
+-
+ 	// Wait until the tx is removed
+-	ticker = time.After(time.Second * 5)
++	ticker := time.After(time.Second * 5)
+ 	select {
+ 	case <-emptyMempoolCh:
+ 		// success
+@@ -221,6 +208,7 @@ func (app *CounterApplication) Info(req abci.RequestInfo) abci.ResponseInfo {
+ 
+ func (app *CounterApplication) DeliverTx(req abci.RequestDeliverTx) abci.ResponseDeliverTx {
+ 	txValue := txAsUint64(req.Tx)
++	//nolint:gosec
+ 	if txValue != uint64(app.txCount) {
+ 		return abci.ResponseDeliverTx{
+ 			Code: code.CodeTypeBadNonce,
+@@ -232,10 +220,20 @@ func (app *CounterApplication) DeliverTx(req abci.RequestDeliverTx) abci.Respons
+ 
+ func (app *CounterApplication) CheckTx(req abci.RequestCheckTx) abci.ResponseCheckTx {
+ 	txValue := txAsUint64(req.Tx)
++	if req.Type == abci.CheckTxType_Recheck {
++		if txValue >= uint64(app.txCount) {
++			return abci.ResponseCheckTx{Code: code.CodeTypeOK}
++		}
++		return abci.ResponseCheckTx{
++			Code: code.CodeTypeBadNonce,
++			Log:  fmt.Sprintf("Invalid nonce. Expected %v, got %v", app.mempoolTxCount, txValue),
++		}
++	}
+ 	if txValue != uint64(app.mempoolTxCount) {
+ 		return abci.ResponseCheckTx{
+ 			Code: code.CodeTypeBadNonce,
+-			Log:  fmt.Sprintf("Invalid nonce. Expected %v, got %v", app.mempoolTxCount, txValue)}
++			Log:  fmt.Sprintf("Invalid nonce. Expected %v, got %v", app.mempoolTxCount, txValue),
++		}
+ 	}
+ 	app.mempoolTxCount++
+ 	return abci.ResponseCheckTx{Code: code.CodeTypeOK}
+@@ -248,11 +246,19 @@ func txAsUint64(tx []byte) uint64 {
+ }
+ 
+ func (app *CounterApplication) Commit() abci.ResponseCommit {
+-	app.mempoolTxCount = app.txCount
++	if app.mempoolTxCount < app.txCount {
++		app.mempoolTxCount = app.txCount
++	}
+ 	if app.txCount == 0 {
+ 		return abci.ResponseCommit{}
+ 	}
+ 	hash := make([]byte, 8)
++	//nolint:gosec
+ 	binary.BigEndian.PutUint64(hash, uint64(app.txCount))
+ 	return abci.ResponseCommit{Data: hash}
+ }
++
++func (app *CounterApplication) PrepareProposal(
++	req abci.RequestPrepareProposal) abci.ResponsePrepareProposal {
++	return abci.ResponsePrepareProposal{BlockData: req.BlockData}
++}

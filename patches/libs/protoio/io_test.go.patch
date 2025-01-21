@@ -1,0 +1,16 @@
+diff --git a/libs/protoio/io_test.go b/libs/protoio/io_test.go
+index 201739d52..3bd84845d 100644
+--- a/libs/protoio/io_test.go
++++ b/libs/protoio/io_test.go
+@@ -97,10 +97,7 @@ func iotest(writer protoio.WriteCloser, reader protoio.ReadCloser) error {
+ 	if i != size {
+ 		panic("not enough messages read")
+ 	}
+-	if err := reader.Close(); err != nil {
+-		return err
+-	}
+-	return nil
++	return reader.Close()
+ }
+ 
+ type buffer struct {

@@ -1,0 +1,31 @@
+diff --git a/state/services.go b/state/services.go
+index 2b6c16fed..22fd741de 100644
+--- a/state/services.go
++++ b/state/services.go
+@@ -1,6 +1,7 @@
+ package state
+ 
+ import (
++	cmtstore "github.com/tendermint/tendermint/proto/tendermint/store"
+ 	"github.com/tendermint/tendermint/types"
+ )
+ 
+@@ -25,14 +26,18 @@ type BlockStore interface {
+ 	LoadBlock(height int64) *types.Block
+ 
+ 	SaveBlock(block *types.Block, blockParts *types.PartSet, seenCommit *types.Commit)
++	SaveTxInfo(block *types.Block, txResponseCodes []uint32, logs []string) error
+ 
+ 	PruneBlocks(height int64) (uint64, error)
+ 
+ 	LoadBlockByHash(hash []byte) *types.Block
++	LoadBlockMetaByHash(hash []byte) *types.BlockMeta
+ 	LoadBlockPart(height int64, index int) *types.Part
+ 
+ 	LoadBlockCommit(height int64) *types.Commit
+ 	LoadSeenCommit(height int64) *types.Commit
++
++	LoadTxInfo(hash []byte) *cmtstore.TxInfo
+ }
+ 
+ //-----------------------------------------------------------------------------
