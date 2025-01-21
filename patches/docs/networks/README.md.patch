@@ -1,0 +1,19 @@
+diff --git a/docs/networks/README.md b/docs/networks/README.md
+deleted file mode 100644
+index ceea23598..000000000
+--- a/docs/networks/README.md
++++ /dev/null
+@@ -1,13 +0,0 @@
+----
+-order: 1
+-parent:
+-  title: Networks
+-  order: 5
+----
+-
+-# Overview
+-
+-Use [Docker Compose](./docker-compose.md) to spin up CometBFT testnets on your
+-local machine.
+-
+-See the `cometbft testnet --help` command for more help initializing testnets.

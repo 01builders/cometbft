@@ -1,0 +1,32 @@
+diff --git a/.github/workflows/e2e.yml b/.github/workflows/e2e.yml
+index cc9e654e3..d4dbb1445 100644
+--- a/.github/workflows/e2e.yml
++++ b/.github/workflows/e2e.yml
+@@ -12,10 +12,10 @@ jobs:
+     runs-on: ubuntu-latest
+     timeout-minutes: 15
+     steps:
++      - uses: actions/checkout@v4
+       - uses: actions/setup-go@v5
+         with:
+-          go-version: '1.21'
+-      - uses: actions/checkout@v4
++          go-version-file: "go.mod"
+       - uses: technote-space/get-diff-action@v6
+         with:
+           PATTERNS: |
+@@ -27,12 +27,12 @@ jobs:
+         working-directory: test/e2e
+         # Run two make jobs in parallel, since we can't run steps in parallel.
+         run: make -j2 docker runner
+-        if: "env.GIT_DIFF != ''"
++        if: env.GIT_DIFF
+ 
+       - name: Run CI testnet
+         working-directory: test/e2e
+         run: ./build/runner -f networks/ci.toml
+-        if: "env.GIT_DIFF != ''"
++        if: env.GIT_DIFF
+ 
+       - name: Emit logs on failure
+         if: ${{ failure() }}

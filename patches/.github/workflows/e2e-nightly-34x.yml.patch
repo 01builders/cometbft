@@ -1,0 +1,54 @@
+diff --git a/.github/workflows/e2e-nightly-34x.yml b/.github/workflows/e2e-nightly-34x.yml
+index 7c8e5c842..ca17fa672 100644
+--- a/.github/workflows/e2e-nightly-34x.yml
++++ b/.github/workflows/e2e-nightly-34x.yml
+@@ -21,13 +21,13 @@ jobs:
+     runs-on: ubuntu-latest
+     timeout-minutes: 60
+     steps:
+-      - uses: actions/setup-go@v5
++      - uses: actions/checkout@v4
+         with:
+-          go-version: '1.21'
++          ref: 'v0.34.x-celestia'
+ 
+-      - uses: actions/checkout@v4
++      - uses: actions/setup-go@v5
+         with:
+-          ref: 'v0.34.x'
++          go-version-file: "go.mod"
+ 
+       - name: Build
+         working-directory: test/e2e
+@@ -49,14 +49,14 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Notify Slack on failure
+-        uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907
++        uses: rtCamp/action-slack-notify@b24d75fe0e728a4bf9fc42ee217caa686d141ee8
+         env:
+           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+           SLACK_CHANNEL: cometbft-engineering
+           SLACK_USERNAME: Nightly E2E Tests
+           SLACK_ICON_EMOJI: ':skull:'
+           SLACK_COLOR: danger
+-          SLACK_MESSAGE: Nightly E2E tests failed on v0.34.x
++          SLACK_MESSAGE: Nightly E2E tests failed on v0.34.x-celestia
+           SLACK_FOOTER: ''
+ 
+   e2e-nightly-success:   # may turn this off once they seem to pass consistently
+@@ -65,12 +65,12 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Notify Slack on success
+-        uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907
++        uses: rtCamp/action-slack-notify@b24d75fe0e728a4bf9fc42ee217caa686d141ee8
+         env:
+           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+           SLACK_CHANNEL: cometbft-engineering
+           SLACK_USERNAME: Nightly E2E Tests
+           SLACK_ICON_EMOJI: ':white_check_mark:'
+           SLACK_COLOR: good
+-          SLACK_MESSAGE: Nightly E2E tests passed on v0.34.x
++          SLACK_MESSAGE: Nightly E2E tests passed on v0.34.x-celestia
+           SLACK_FOOTER: ''

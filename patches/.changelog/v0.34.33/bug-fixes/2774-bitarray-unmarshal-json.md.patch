@@ -1,0 +1,8 @@
+diff --git a/.changelog/v0.34.33/bug-fixes/2774-bitarray-unmarshal-json.md b/.changelog/v0.34.33/bug-fixes/2774-bitarray-unmarshal-json.md
+deleted file mode 100644
+index 1c51af49d..000000000
+--- a/.changelog/v0.34.33/bug-fixes/2774-bitarray-unmarshal-json.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- [`bits`] prevent `BitArray.UnmarshalJSON` from crashing on 0 bits
+-  ([\#2774](https://github.com/cometbft/cometbft/pull/2774))

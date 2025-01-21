@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.32/improvements/2328-e2e-log-sent-txs.md b/.changelog/v0.34.32/improvements/2328-e2e-log-sent-txs.md
+deleted file mode 100644
+index e1b69899f..000000000
+--- a/.changelog/v0.34.32/improvements/2328-e2e-log-sent-txs.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- `[e2e]` Log the number of transactions that were sent successfully or failed.
+-  ([\#2328](https://github.com/cometbft/cometbft/pull/2328))
+\ No newline at end of file

@@ -1,0 +1,25 @@
+diff --git a/.github/mergify.yml b/.github/mergify.yml
+deleted file mode 100644
+index 257c3f5a7..000000000
+--- a/.github/mergify.yml
++++ /dev/null
+@@ -1,19 +0,0 @@
+-queue_rules:
+-  - name: default
+-    conditions:
+-      - base=v0.34.x
+-      - label=S:automerge
+-
+-pull_request_rules:
+-  - name: Automerge to v0.34.x
+-    conditions:
+-      - base=v0.34.x
+-      - label=S:automerge
+-    actions:
+-      queue:
+-        method: squash
+-        name: default
+-        commit_message_template: |
+-          {{ title }} (#{{ number }})
+-
+-          {{ body }}

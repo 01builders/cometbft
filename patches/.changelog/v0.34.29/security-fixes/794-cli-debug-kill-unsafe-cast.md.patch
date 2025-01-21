@@ -1,0 +1,8 @@
+diff --git a/.changelog/v0.34.29/security-fixes/794-cli-debug-kill-unsafe-cast.md b/.changelog/v0.34.29/security-fixes/794-cli-debug-kill-unsafe-cast.md
+deleted file mode 100644
+index 782eccd9d..000000000
+--- a/.changelog/v0.34.29/security-fixes/794-cli-debug-kill-unsafe-cast.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- `[cmd/cometbft/commands/debug/kill]` **Low severity** - Fix unsafe int cast in
+-  `debug kill` command ([\#794](https://github.com/cometbft/cometbft/pull/794))

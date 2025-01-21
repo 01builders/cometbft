@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.27/improvements/136-remove-tm-signer-harness.md b/.changelog/v0.34.27/improvements/136-remove-tm-signer-harness.md
+deleted file mode 100644
+index 6eb6c2158..000000000
+--- a/.changelog/v0.34.27/improvements/136-remove-tm-signer-harness.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- `[tools/tm-signer-harness]` Remove the folder as it is unused
+-  ([\#136](https://github.com/cometbft/cometbft/issues/136))
+\ No newline at end of file

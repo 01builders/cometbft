@@ -1,0 +1,10 @@
+diff --git a/.changelog/v0.34.29/summary.md b/.changelog/v0.34.29/summary.md
+deleted file mode 100644
+index 7ecb27394..000000000
+--- a/.changelog/v0.34.29/summary.md
++++ /dev/null
+@@ -1,4 +0,0 @@
+-*June 14, 2023*
+-
+-Provides several minor bug fixes, as well as fixes for several low-severity
+-security issues.

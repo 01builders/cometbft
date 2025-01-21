@@ -1,0 +1,10 @@
+diff --git a/test/docker/Dockerfile b/test/docker/Dockerfile
+index 65ec588eb..9e1aa79e0 100644
+--- a/test/docker/Dockerfile
++++ b/test/docker/Dockerfile
+@@ -1,4 +1,4 @@
+-FROM golang:1.21
++FROM golang:1.23.1
+ 
+ # Grab deps (jq, hexdump, xxd, killall)
+ RUN apt-get update && \

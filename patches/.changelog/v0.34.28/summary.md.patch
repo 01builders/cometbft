@@ -1,0 +1,12 @@
+diff --git a/.changelog/v0.34.28/summary.md b/.changelog/v0.34.28/summary.md
+deleted file mode 100644
+index ba3efa9d7..000000000
+--- a/.changelog/v0.34.28/summary.md
++++ /dev/null
+@@ -1,6 +0,0 @@
+-*April 26, 2023*
+-
+-This release fixes several bugs, and has had to introduce one small Go
+-API-breaking change in the `crypto/merkle` package in order to address what
+-could be a security issue for some users who directly and explicitly make use of
+-that code.

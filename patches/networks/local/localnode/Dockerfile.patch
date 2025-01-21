@@ -1,0 +1,10 @@
+diff --git a/networks/local/localnode/Dockerfile b/networks/local/localnode/Dockerfile
+index e1c3c4527..197d07a70 100644
+--- a/networks/local/localnode/Dockerfile
++++ b/networks/local/localnode/Dockerfile
+@@ -1,4 +1,4 @@
+-FROM alpine:3.7
++FROM alpine:3.14
+ 
+ RUN apk update && \
+     apk upgrade && \

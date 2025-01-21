@@ -1,0 +1,12 @@
+diff --git a/crypto/merkle/README.md b/crypto/merkle/README.md
+index 16b1abb58..299f50dc7 100644
+--- a/crypto/merkle/README.md
++++ b/crypto/merkle/README.md
+@@ -1,4 +1,5 @@
+ # Merkle Tree
+ 
+-For smaller static data structures that don't require immutable snapshots or mutability; 
+-for instance the transactions and validation signatures of a block can be hashed using this simple merkle tree logic.
++For smaller static data structures that don't require immutable snapshots or mutability.
++
++For instance, the transactions and validation signatures of a block can be hashed using this simple merkle tree logic.

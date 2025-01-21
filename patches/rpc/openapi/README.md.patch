@@ -1,0 +1,18 @@
+diff --git a/rpc/openapi/README.md b/rpc/openapi/README.md
+new file mode 100644
+index 000000000..ef8d89814
+--- /dev/null
++++ b/rpc/openapi/README.md
+@@ -0,0 +1,12 @@
++---
++order: 5
++parent:
++title: RPC
++order: 5
++---
++
++# RPC
++
++The RPC documentation is hosted here:
++
++- [RPC Documentation](https://docs.cometbft.com/v0.34/rpc)

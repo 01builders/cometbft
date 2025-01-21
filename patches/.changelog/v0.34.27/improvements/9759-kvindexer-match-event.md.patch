@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.27/improvements/9759-kvindexer-match-event.md b/.changelog/v0.34.27/improvements/9759-kvindexer-match-event.md
+deleted file mode 100644
+index 8b5757cb8..000000000
+--- a/.changelog/v0.34.27/improvements/9759-kvindexer-match-event.md
++++ /dev/null
+@@ -1,3 +0,0 @@
+-- `[state/kvindexer]` Add `match.event` keyword to support condition evaluation
+-  based on the event the attributes belong to
+-  ([tendermint/tendermint\#9759](https://github.com/tendermint/tendermint/pull/9759))

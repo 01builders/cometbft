@@ -1,0 +1,8 @@
+diff --git a/.changelog/v0.34.27/breaking-changes/360-update-to-go-119.md b/.changelog/v0.34.27/breaking-changes/360-update-to-go-119.md
+deleted file mode 100644
+index 97fafda93..000000000
+--- a/.changelog/v0.34.27/breaking-changes/360-update-to-go-119.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- Use Go 1.19 to build CometBFT, since Go 1.18 has reached end-of-life.
+-  ([\#360](https://github.com/cometbft/cometbft/issues/360))

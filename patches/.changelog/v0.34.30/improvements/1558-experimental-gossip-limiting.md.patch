@@ -1,0 +1,15 @@
+diff --git a/.changelog/v0.34.30/improvements/1558-experimental-gossip-limiting.md b/.changelog/v0.34.30/improvements/1558-experimental-gossip-limiting.md
+deleted file mode 100644
+index c6606aa94..000000000
+--- a/.changelog/v0.34.30/improvements/1558-experimental-gossip-limiting.md
++++ /dev/null
+@@ -1,9 +0,0 @@
+-- `[mempool]` Add experimental feature to limit the number of persistent peers and non-persistent
+-  peers to which the node gossip transactions (only for "v0" mempool).
+-  ([\#1558](https://github.com/cometbft/cometbft/pull/1558),
+-  ([\#1584](https://github.com/cometbft/cometbft/pull/1584))
+-- `[config]` Add mempool parameters `experimental_max_gossip_connections_to_persistent_peers` and
+-  `experimental_max_gossip_connections_to_non_persistent_peers` for limiting the number of peers to
+-  which the node gossip transactions. 
+-  ([\#1558](https://github.com/cometbft/cometbft/pull/1558))
+-  ([\#1584](https://github.com/cometbft/cometbft/pull/1584))

@@ -1,0 +1,13 @@
+diff --git a/spec/consensus/proposer-based-timestamp/pbts-algorithm_001_draft.md b/spec/consensus/proposer-based-timestamp/pbts-algorithm_001_draft.md
+index b42b3ab2f..82fd348c6 100644
+--- a/spec/consensus/proposer-based-timestamp/pbts-algorithm_001_draft.md
++++ b/spec/consensus/proposer-based-timestamp/pbts-algorithm_001_draft.md
+@@ -148,7 +148,7 @@ upon ⟨PROPOSAL, h_p, r, (v,t), ∗⟩ from proposer(h_p, r) AND 2f + 1 ⟨PREC
+ }
+ ```
+ 
+-**All other rules remains unchanged.**
++**All other rules remain unchanged.**
+ 
+ Back to [main document][main].
+ 

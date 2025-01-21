@@ -1,0 +1,8 @@
+diff --git a/.changelog/v0.34.33/dependencies/2783-update-cometbft-db.md b/.changelog/v0.34.33/dependencies/2783-update-cometbft-db.md
+deleted file mode 100644
+index 7d1c67e07..000000000
+--- a/.changelog/v0.34.33/dependencies/2783-update-cometbft-db.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- Bump cometbft-db version to v0.9.1, which brings support for RocksDB v8.
+-  ([\#2783](https://github.com/cometbft/cometbft/pull/2783))

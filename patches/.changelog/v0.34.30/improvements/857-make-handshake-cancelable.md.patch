@@ -1,0 +1,7 @@
+diff --git a/.changelog/v0.34.30/improvements/857-make-handshake-cancelable.md b/.changelog/v0.34.30/improvements/857-make-handshake-cancelable.md
+deleted file mode 100644
+index 16b447f6d..000000000
+--- a/.changelog/v0.34.30/improvements/857-make-handshake-cancelable.md
++++ /dev/null
+@@ -1 +0,0 @@
+-- `[node]` Make handshake cancelable ([cometbft/cometbft\#857](https://github.com/cometbft/cometbft/pull/857))

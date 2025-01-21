@@ -1,0 +1,12 @@
+diff --git a/.changelog/v0.34.27/bug-fixes/386-quick-fix-needproofblock.md b/.changelog/v0.34.27/bug-fixes/386-quick-fix-needproofblock.md
+deleted file mode 100644
+index d3d2f5b73..000000000
+--- a/.changelog/v0.34.27/bug-fixes/386-quick-fix-needproofblock.md
++++ /dev/null
+@@ -1,6 +0,0 @@
+-- `[consensus]` Short-term fix for the case when `needProofBlock` cannot find
+-  previous block meta by defaulting to the creation of a new proof block.
+-  ([\#386](https://github.com/cometbft/cometbft/pull/386): @adizere)
+-  - Special thanks to the [Vega.xyz](https://vega.xyz/) team, and in particular
+-    to Zohar (@ze97286), for reporting the problem and working with us to get to
+-    a fix.

@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.29/security-fixes/788-rpc-client-pw.md b/.changelog/v0.34.29/security-fixes/788-rpc-client-pw.md
+deleted file mode 100644
+index 430b7b5ac..000000000
+--- a/.changelog/v0.34.29/security-fixes/788-rpc-client-pw.md
++++ /dev/null
+@@ -1,3 +0,0 @@
+-- `[rpc/jsonrpc/client]` **Low severity** - Prevent RPC
+-  client credentials from being inadvertently dumped to logs
+-  ([\#788](https://github.com/cometbft/cometbft/pull/788))

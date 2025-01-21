@@ -1,0 +1,16 @@
+diff --git a/.mergify.yml b/.mergify.yml
+deleted file mode 100644
+index b1bef433d..000000000
+--- a/.mergify.yml
++++ /dev/null
+@@ -1,10 +0,0 @@
+-pull_request_rules:
+-  - name: Automerge to master
+-    conditions:
+-      - base=master
+-      - label=S:automerge
+-    actions:
+-      merge:
+-        method: squash
+-        strict: true
+-        commit_message: title+body

@@ -1,0 +1,7 @@
+diff --git a/.changelog/v0.34.32/improvements/1730-increase-abci-socket-message-size-limit.md b/.changelog/v0.34.32/improvements/1730-increase-abci-socket-message-size-limit.md
+deleted file mode 100644
+index 5246eb57f..000000000
+--- a/.changelog/v0.34.32/improvements/1730-increase-abci-socket-message-size-limit.md
++++ /dev/null
+@@ -1 +0,0 @@
+-- `[abci]` Increase ABCI socket message size limit to 2GB ([\#1730](https://github.com/cometbft/cometbft/pull/1730): @troykessler)

@@ -1,0 +1,8 @@
+diff --git a/.changelog/v0.34.28/breaking-changes/558-tm10011.md b/.changelog/v0.34.28/breaking-changes/558-tm10011.md
+deleted file mode 100644
+index d1b9fca4a..000000000
+--- a/.changelog/v0.34.28/breaking-changes/558-tm10011.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- `[crypto/merkle]` Do not allow verification of Merkle Proofs against empty trees (`nil` root). `Proof.ComputeRootHash` now panics when it encounters an error, but `Proof.Verify` does not panic
+-  ([\#558](https://github.com/cometbft/cometbft/issues/558))

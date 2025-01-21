@@ -1,0 +1,10 @@
+diff --git a/.changelog/v0.34.31/bug-fixes/1654-semaphore-wait.md b/.changelog/v0.34.31/bug-fixes/1654-semaphore-wait.md
+deleted file mode 100644
+index 9d0fb80ad..000000000
+--- a/.changelog/v0.34.31/bug-fixes/1654-semaphore-wait.md
++++ /dev/null
+@@ -1,3 +0,0 @@
+-- `[mempool]` Avoid infinite wait in transaction sending routine when
+-  using experimental parameters to limiting transaction gossiping to peers
+-  ([\#1654](https://github.com/cometbft/cometbft/pull/1654))
+\ No newline at end of file

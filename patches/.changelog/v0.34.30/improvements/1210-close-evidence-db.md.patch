@@ -1,0 +1,7 @@
+diff --git a/.changelog/v0.34.30/improvements/1210-close-evidence-db.md b/.changelog/v0.34.30/improvements/1210-close-evidence-db.md
+deleted file mode 100644
+index e32bc87db..000000000
+--- a/.changelog/v0.34.30/improvements/1210-close-evidence-db.md
++++ /dev/null
+@@ -1 +0,0 @@
+-- `[node]` Close evidence.db OnStop ([cometbft/cometbft\#1210](https://github.com/cometbft/cometbft/pull/1210): @chillyvee)

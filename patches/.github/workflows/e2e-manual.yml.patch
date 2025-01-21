@@ -1,0 +1,18 @@
+diff --git a/.github/workflows/e2e-manual.yml b/.github/workflows/e2e-manual.yml
+index 864ed2fa9..577720d72 100644
+--- a/.github/workflows/e2e-manual.yml
++++ b/.github/workflows/e2e-manual.yml
+@@ -14,11 +14,11 @@ jobs:
+     runs-on: ubuntu-latest
+     timeout-minutes: 60
+     steps:
++      - uses: actions/checkout@v4
+       - uses: actions/setup-go@v5
+         with:
+-          go-version: '1.21'
++          go-version-file: "go.mod"
+ 
+-      - uses: actions/checkout@v4
+ 
+       - name: Build
+         working-directory: test/e2e

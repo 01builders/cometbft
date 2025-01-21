@@ -1,0 +1,111 @@
+diff --git a/spec/abci/abci.md b/spec/abci/abci.md
+index 2d5cc4eaa..e3cf74885 100644
+--- a/spec/abci/abci.md
++++ b/spec/abci/abci.md
+@@ -66,20 +66,20 @@ The handling of non-zero response codes by CometBFT is described below
+ 
+ The `CheckTx` ABCI method controls what transactions are considered for inclusion in a block.
+ When CometBFT receives a `ResponseCheckTx` with a non-zero `Code`, the associated
+-transaction will be not be added to CometBFT's mempool or it will be removed if
++transaction will not be added to CometBFT's mempool or it will be removed if
+ it is already included.
+ 
+ ### DeliverTx
+ 
+ The `DeliverTx` ABCI method delivers transactions from CometBFT to the application.
+-When CometBFT recieves a `ResponseDeliverTx` with a non-zero `Code`, the response code is logged.
++When CometBFT receives a `ResponseDeliverTx` with a non-zero `Code`, the response code is logged.
+ The transaction was already included in a block, so the `Code` does not influence
+ CometBFT consensus.
+ 
+ ### Query
+ 
+ The `Query` ABCI method query queries the application for information about application state.
+-When CometBFT receives a `ResponseQuery` with a non-zero `Code`, this code is 
++When CometBFT receives a `ResponseQuery` with a non-zero `Code`, this code is
+ returned directly to the client that initiated the query.
+ 
+ ## Events
+@@ -91,7 +91,7 @@ transactions and blocks this metadata relates to.
+ Events returned via these ABCI methods do not impact CometBFT consensus in any way
+ and instead exist to power subscriptions and queries of CometBFT state.
+ 
+-An `Event` contains a `type` and a list of `EventAttributes`, which are key-value 
++An `Event` contains a `type` and a list of `EventAttributes`, which are key-value
+ string pairs denoting metadata about what happened during the method's execution.
+ `Event` values can be used to index transactions and blocks according to what happened
+ during their execution. Note that the set of events returned for a block from
+@@ -163,8 +163,8 @@ Example:
+ CometBFT's security model relies on the use of "evidence". Evidence is proof of
+ malicious behaviour by a network participant. It is the responsibility of CometBFT
+ to detect such malicious behaviour. When malicious behavior is detected, CometBFT
+-will gossip evidence of the behavior to other nodes and commit the evidence to 
+-the chain once it is verified by all validators. This evidence will then be 
++will gossip evidence of the behavior to other nodes and commit the evidence to
++the chain once it is verified by all validators. This evidence will then be
+ passed it on to the application through the ABCI. It is the responsibility of the
+ application to handle the evidence and exercise punishment.
+ 
+@@ -289,20 +289,20 @@ the blockchain's `AppHash` which is verified via [light client verification](../
+ 
+ * **Request**:
+ 
+-    | Name          | Type   | Description                              | Field Number |
+-    |---------------|--------|------------------------------------------|--------------|
++    | Name          | Type   | Description                            | Field Number |
++    |---------------|--------|----------------------------------------|--------------|
+     | version       | string | The CometBFT software semantic version | 1            |
+-    | block_version | uint64 | The CometBFT Block Protocol version    | 2            |
+-    | p2p_version   | uint64 | The CometBFT P2P Protocol version      | 3            |
++    | block_version | uint64 | The CometBFT Block version             | 2            |
++    | p2p_version   | uint64 | The CometBFT P2P version               | 3            |
+     | abci_version  | string | The CometBFT ABCI semantic version     | 4            |
+ 
+ * **Response**:
+-  
++
+     | Name                | Type   | Description                                      | Field Number |
+     |---------------------|--------|--------------------------------------------------|--------------|
+     | data                | string | Some arbitrary information                       | 1            |
+     | version             | string | The application software semantic version        | 2            |
+-    | app_version         | uint64 | The application protocol version                 | 3            |
++    | app_version         | uint64 | The application version                          | 3            |
+     | last_block_height   | int64  | Latest block for which the app has called Commit | 4            |
+     | last_block_app_hash | bytes  | Latest result of Commit                          | 5            |
+ 
+@@ -351,7 +351,7 @@ the blockchain's `AppHash` which is verified via [light client verification](../
+ ### Query
+ 
+ * **Request**:
+-  
++
+     | Name   | Type   | Description                                                                                                                                                                                                                                                                            | Field Number |
+     |--------|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|
+     | data   | bytes  | Raw query bytes. Can be used with or in lieu of Path.                                                                                                                                                                                                                                  | 1            |
+@@ -411,7 +411,7 @@ the blockchain's `AppHash` which is verified via [light client verification](../
+     | Name | Type        | Description                                                                                                                                                                                                                                         | Field Number |
+     |------|-------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|
+     | tx   | bytes       | The request transaction bytes                                                                                                                                                                                                                       | 1            |
+-    | type | CheckTxType | One of `CheckTx_New` or `CheckTx_Recheck`. `CheckTx_New` is the default and means that a full check of the tranasaction is required. `CheckTx_Recheck` types are used when the mempool is initiating a normal recheck of a transaction.             | 2            |
++    | type | CheckTxType | One of `CheckTx_New` or `CheckTx_Recheck`. `CheckTx_New` is the default and means that a full check of the transaction is required. `CheckTx_Recheck` types are used when the mempool is initiating a normal recheck of a transaction.             | 2            |
+ 
+ * **Response**:
+ 
+@@ -495,7 +495,7 @@ the blockchain's `AppHash` which is verified via [light client verification](../
+         * `H+3`: `LastCommitInfo` is changed to include the altered validator set.
+     * `consensus_param_updates` returned for block `H` apply to the consensus
+       params for block `H+1`. For more information on the consensus parameters,
+-      see the [application spec entry on consensus parameters](../spec/abci/apps.md#consensus-parameters).
++      see the [application spec entry on consensus parameters](./apps.md#consensus-parameters).
+ 
+ ### Commit
+ 
+@@ -562,7 +562,7 @@ the blockchain's `AppHash` which is verified via [light client verification](../
+ 
+     | Name  | Type  | Description                                                                                                                                           | Field Number |
+     |-------|-------|-------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|
+-    | chunk | bytes | The binary chunk contents, in an arbitray format. Chunk messages cannot be larger than 16 MB _including metadata_, so 10 MB is a good starting point. | 1            |
++    | chunk | bytes | The binary chunk contents, in an arbitrary format. Chunk messages cannot be larger than 16 MB _including metadata_, so 10 MB is a good starting point. | 1            |
+ 
+ * **Usage**:
+     * Used during state sync to retrieve snapshot chunks from peers.

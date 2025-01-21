@@ -1,0 +1,17 @@
+diff --git a/.github/dependabot.yml b/.github/dependabot.yml
+new file mode 100644
+index 000000000..7092c7ab8
+--- /dev/null
++++ b/.github/dependabot.yml
+@@ -0,0 +1,11 @@
++version: 2
++updates:
++  - package-ecosystem: gomod
++    directory: "/"
++    schedule:
++      interval: daily
++    open-pull-requests-limit: 10
++    labels:
++      - T:dependencies
++    allow:
++      - dependency-name: "*/celestiaorg/*"

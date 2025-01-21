@@ -1,0 +1,32 @@
+diff --git a/.github/workflows/govulncheck.yml b/.github/workflows/govulncheck.yml
+index 9ea5879f2..a798d1920 100644
+--- a/.github/workflows/govulncheck.yml
++++ b/.github/workflows/govulncheck.yml
+@@ -8,17 +8,16 @@ on:
+   pull_request:
+   push:
+     branches:
+-      - v0.34.x
++      - v[0-9]+.[0-9]+.x-celestia
+ 
+ jobs:
+   govulncheck:
+     runs-on: ubuntu-latest
+     steps:
+-      - uses: actions/setup-go@v5
+-        with:
+-          go-version: "1.21"
+-          check-latest: true
+       - uses: actions/checkout@v4
++      - uses: actions/setup-go@v3
++        with:
++          go-version-file: "go.mod"
+       - uses: technote-space/get-diff-action@v6
+         with:
+           PATTERNS: |
+@@ -28,4 +27,4 @@ jobs:
+             Makefile
+       - name: govulncheck
+         run: make vulncheck
+-        if: "env.GIT_DIFF != ''"
++        if: env.GIT_DIFF

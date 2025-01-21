@@ -1,0 +1,8 @@
+diff --git a/.changelog/v0.34.29/bug-fixes/771-kvindexer-parsing-big-ints.md b/.changelog/v0.34.29/bug-fixes/771-kvindexer-parsing-big-ints.md
+deleted file mode 100644
+index 4a0000db6..000000000
+--- a/.changelog/v0.34.29/bug-fixes/771-kvindexer-parsing-big-ints.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- `[state/kvindex]` Querying event attributes that are bigger than int64 is now
+-  enabled. ([\#771](https://github.com/cometbft/cometbft/pull/771))

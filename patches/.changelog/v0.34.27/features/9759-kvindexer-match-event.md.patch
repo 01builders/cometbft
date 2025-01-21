@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.27/features/9759-kvindexer-match-event.md b/.changelog/v0.34.27/features/9759-kvindexer-match-event.md
+deleted file mode 100644
+index 281f6cd1f..000000000
+--- a/.changelog/v0.34.27/features/9759-kvindexer-match-event.md
++++ /dev/null
+@@ -1,3 +0,0 @@
+-- `[rpc]` Add `match_event` query parameter to indicate to the RPC that it
+-  should match events _within_ attributes, not only within a height
+-  ([tendermint/tendermint\#9759](https://github.com/tendermint/tendermint/pull/9759))

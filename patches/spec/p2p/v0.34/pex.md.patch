@@ -1,0 +1,12 @@
+diff --git a/spec/p2p/v0.34/pex.md b/spec/p2p/v0.34/pex.md
+index 8243eaa55..8f49e84af 100644
+--- a/spec/p2p/v0.34/pex.md
++++ b/spec/p2p/v0.34/pex.md
+@@ -106,6 +106,6 @@ A node receives two type of messages as part of the PEX protocol:
+ 
+ - `PexRequest`: a request for addresses received from a peer, handled as
+   described [here](./pex-protocol.md#providing-addresses)
+-- `PexAddrs`: a list of addresses received from a peer, as a reponse to a PEX
++- `PexAddrs`: a list of addresses received from a peer, as a response to a PEX
+   request sent by the node, as described [here](./pex-protocol.md#responses)
+ 

@@ -1,0 +1,15 @@
+diff --git a/docs/core/rpc.md b/docs/core/rpc.md
+deleted file mode 100644
+index e118d5a3a..000000000
+--- a/docs/core/rpc.md
++++ /dev/null
+@@ -1,9 +0,0 @@
+----
+-order: 9
+----
+-
+-# RPC
+-
+-The RPC documentation is hosted here:
+-
+-- [OpenAPI reference](../rpc)

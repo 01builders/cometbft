@@ -1,0 +1,18 @@
+diff --git a/docs/app-dev/README.md b/docs/app-dev/README.md
+deleted file mode 100644
+index aff0a570c..000000000
+--- a/docs/app-dev/README.md
++++ /dev/null
+@@ -1,12 +0,0 @@
+----
+-order: false
+-parent:
+-  order: 3
+----
+-
+-# Apps
+-
+-- [Using ABCI-CLI](./abci-cli.md)
+-- [Getting Started](./getting-started.md)
+-- [Indexing transactions](./indexing-transactions.md)
+-- [Application Architecture Guide](./app-architecture.md)

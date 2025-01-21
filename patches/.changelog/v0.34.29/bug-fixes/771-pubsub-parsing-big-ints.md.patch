@@ -1,0 +1,10 @@
+diff --git a/.changelog/v0.34.29/bug-fixes/771-pubsub-parsing-big-ints.md b/.changelog/v0.34.29/bug-fixes/771-pubsub-parsing-big-ints.md
+deleted file mode 100644
+index fc5f25a90..000000000
+--- a/.changelog/v0.34.29/bug-fixes/771-pubsub-parsing-big-ints.md
++++ /dev/null
+@@ -1,4 +0,0 @@
+-- `[pubsub]` Pubsub queries are now able to parse big integers (larger than
+-  int64). Very big floats are also properly parsed into very big integers
+-  instead of being truncated to int64.
+-  ([\#771](https://github.com/cometbft/cometbft/pull/771))

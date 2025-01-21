@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.28/bug-fixes/496-error-on-applyblock-should-panic.md b/.changelog/v0.34.28/bug-fixes/496-error-on-applyblock-should-panic.md
+deleted file mode 100644
+index 55e9c874f..000000000
+--- a/.changelog/v0.34.28/bug-fixes/496-error-on-applyblock-should-panic.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- `[consensus]` Unexpected error conditions in `ApplyBlock` are non-recoverable, so ignoring the error and carrying on is a bug. We replaced a `return` that disregarded the error by a `panic`.
+-  ([\#496](https://github.com/cometbft/cometbft/pull/496))
+\ No newline at end of file

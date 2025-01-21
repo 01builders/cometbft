@@ -1,0 +1,7 @@
+diff --git a/.changelog/v0.34.32/improvements/1715-validate-validator-address.md b/.changelog/v0.34.32/improvements/1715-validate-validator-address.md
+deleted file mode 100644
+index ec7f2c7da..000000000
+--- a/.changelog/v0.34.32/improvements/1715-validate-validator-address.md
++++ /dev/null
+@@ -1 +0,0 @@
+-- `[types]` Validate `Validator#Address` in `ValidateBasic` ([\#1715](https://github.com/cometbft/cometbft/pull/1715))

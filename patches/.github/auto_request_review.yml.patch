@@ -1,0 +1,20 @@
+diff --git a/.github/auto_request_review.yml b/.github/auto_request_review.yml
+new file mode 100644
+index 000000000..32ab61b10
+--- /dev/null
++++ b/.github/auto_request_review.yml
+@@ -0,0 +1,14 @@
++# More info at https://github.com/necojackarc/auto-request-review
++reviewers:
++  defaults:
++    - cmwaters
++    - evan-forbes
++    - ninabarbakadze
++    - rach-id
++    - rootulp
++
++options:
++  ignore_draft: true
++  ignored_keywords:
++    - DO NOT REVIEW
++  enable_group_assignment: false

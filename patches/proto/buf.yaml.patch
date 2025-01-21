@@ -1,0 +1,10 @@
+diff --git a/proto/buf.yaml b/proto/buf.yaml
+index 90988439b..197d20181 100644
+--- a/proto/buf.yaml
++++ b/proto/buf.yaml
+@@ -10,3 +10,5 @@ lint:
+     - BASIC
+     - FILE_LOWER_SNAKE_CASE
+     - UNARY_RPC
++  except:
++    - RPC_NO_SERVER_STREAMING

@@ -1,0 +1,10 @@
+diff --git a/.changelog/v0.34.27/improvements/9764-p2p-fix-logspam.md b/.changelog/v0.34.27/improvements/9764-p2p-fix-logspam.md
+deleted file mode 100644
+index 78fa6844f..000000000
+--- a/.changelog/v0.34.27/improvements/9764-p2p-fix-logspam.md
++++ /dev/null
+@@ -1,4 +0,0 @@
+-- `[p2p]` Reduce log spam through reducing log level of "Dialing peer" and
+-  "Added peer" messages from info to debug
+-  ([tendermint/tendermint\#9764](https://github.com/tendermint/tendermint/pull/9764):
+-  @faddat)

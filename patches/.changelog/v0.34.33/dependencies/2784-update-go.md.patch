@@ -1,0 +1,8 @@
+diff --git a/.changelog/v0.34.33/dependencies/2784-update-go.md b/.changelog/v0.34.33/dependencies/2784-update-go.md
+deleted file mode 100644
+index 6185be4b6..000000000
+--- a/.changelog/v0.34.33/dependencies/2784-update-go.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- Bump Go version used to v1.21 since v1.20 has reached EOL
+-  ([\#2784](https://github.com/cometbft/cometbft/pull/2784))

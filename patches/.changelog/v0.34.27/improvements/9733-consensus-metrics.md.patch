@@ -1,0 +1,10 @@
+diff --git a/.changelog/v0.34.27/improvements/9733-consensus-metrics.md b/.changelog/v0.34.27/improvements/9733-consensus-metrics.md
+deleted file mode 100644
+index 77d8c743e..000000000
+--- a/.changelog/v0.34.27/improvements/9733-consensus-metrics.md
++++ /dev/null
+@@ -1,4 +0,0 @@
+-- `[consensus]` Add `consensus_block_gossip_parts_received` and
+-  `consensus_step_duration_seconds` metrics in order to aid in investigating the
+-  impact of database compaction on consensus performance
+-  ([tendermint/tendermint\#9733](https://github.com/tendermint/tendermint/pull/9733))

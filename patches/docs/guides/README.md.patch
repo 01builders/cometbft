@@ -1,0 +1,21 @@
+diff --git a/docs/guides/README.md b/docs/guides/README.md
+deleted file mode 100644
+index 7c8b0a9e5..000000000
+--- a/docs/guides/README.md
++++ /dev/null
+@@ -1,15 +0,0 @@
+----
+-order: false
+-parent:
+-  order: 2
+----
+-
+-# Guides
+-
+-- [Installing CometBFT](./install.md)
+-- [Quick-start using CometBFT](./quick-start.md)
+-- [Upgrading from Tendermint to CometBFT](./upgrading-from-tm.md)
+-- [Creating a built-in application in Go](./go-built-in.md)
+-- [Creating an external application in Go](./go.md)
+-- [Creating an external application in Java](./java.md)
+-- [Creating an external application in Kotlin](./kotlin.md)

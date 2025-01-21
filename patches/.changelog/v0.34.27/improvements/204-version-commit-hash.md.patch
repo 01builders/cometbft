@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.27/improvements/204-version-commit-hash.md b/.changelog/v0.34.27/improvements/204-version-commit-hash.md
+deleted file mode 100644
+index 675a1a292..000000000
+--- a/.changelog/v0.34.27/improvements/204-version-commit-hash.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- Append the commit hash to the version of CometBFT being built
+-  ([\#204](https://github.com/cometbft/cometbft/pull/204))
+\ No newline at end of file

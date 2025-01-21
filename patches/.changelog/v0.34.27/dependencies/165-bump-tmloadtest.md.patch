@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.27/dependencies/165-bump-tmloadtest.md b/.changelog/v0.34.27/dependencies/165-bump-tmloadtest.md
+deleted file mode 100644
+index 175163ac0..000000000
+--- a/.changelog/v0.34.27/dependencies/165-bump-tmloadtest.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- Bump tm-load-test to v1.3.0 to remove implicit dependency on Tendermint Core
+-  ([\#165](https://github.com/cometbft/cometbft/pull/165))
+\ No newline at end of file

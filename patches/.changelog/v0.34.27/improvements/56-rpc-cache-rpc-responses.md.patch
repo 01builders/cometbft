@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.27/improvements/56-rpc-cache-rpc-responses.md b/.changelog/v0.34.27/improvements/56-rpc-cache-rpc-responses.md
+deleted file mode 100644
+index 344b3df93..000000000
+--- a/.changelog/v0.34.27/improvements/56-rpc-cache-rpc-responses.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- `[e2e]` Add functionality for uncoordinated (minor) upgrades
+-  ([\#56](https://github.com/tendermint/tendermint/pull/56))
+\ No newline at end of file

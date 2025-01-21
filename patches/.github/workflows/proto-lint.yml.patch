@@ -1,0 +1,22 @@
+diff --git a/.github/workflows/proto-lint.yml b/.github/workflows/proto-lint.yml
+index de3ec9154..8ca233b00 100644
+--- a/.github/workflows/proto-lint.yml
++++ b/.github/workflows/proto-lint.yml
+@@ -5,7 +5,7 @@ on:
+       - 'proto/**'
+   push:
+     branches:
+-      - v0.34.x
++      - v0.34.x-celestia
+     paths:
+       - 'proto/**'
+ 
+@@ -15,7 +15,7 @@ jobs:
+     timeout-minutes: 5
+     steps:
+       - uses: actions/checkout@v4
+-      - uses: bufbuild/buf-setup-action@v1.30.1
++      - uses: bufbuild/buf-setup-action@v1.26.1
+       - uses: bufbuild/buf-lint-action@v1
+         with:
+           input: 'proto'

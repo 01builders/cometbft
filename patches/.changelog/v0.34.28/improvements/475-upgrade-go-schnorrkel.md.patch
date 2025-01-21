@@ -1,0 +1,7 @@
+diff --git a/.changelog/v0.34.28/improvements/475-upgrade-go-schnorrkel.md b/.changelog/v0.34.28/improvements/475-upgrade-go-schnorrkel.md
+deleted file mode 100644
+index bdaf96c14..000000000
+--- a/.changelog/v0.34.28/improvements/475-upgrade-go-schnorrkel.md
++++ /dev/null
+@@ -1 +0,0 @@
+-- `[crypto/sr25519]` Upgrade to go-schnorrkel@v1.0.0 ([\#475](https://github.com/cometbft/cometbft/issues/475))

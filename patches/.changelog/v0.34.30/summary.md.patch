@@ -1,0 +1,11 @@
+diff --git a/.changelog/v0.34.30/summary.md b/.changelog/v0.34.30/summary.md
+deleted file mode 100644
+index f1e5c7f75..000000000
+--- a/.changelog/v0.34.30/summary.md
++++ /dev/null
+@@ -1,5 +0,0 @@
+-*November 17, 2023*
+-
+-This release contains, among other things, an opt-in, experimental feature to
+-help reduce the bandwidth consumption associated with the mempool's transaction
+-gossip.

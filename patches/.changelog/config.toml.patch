@@ -1,0 +1,7 @@
+diff --git a/.changelog/config.toml b/.changelog/config.toml
+deleted file mode 100644
+index de0fee50c..000000000
+--- a/.changelog/config.toml
++++ /dev/null
+@@ -1 +0,0 @@
+-project_url = 'https://github.com/cometbft/cometbft' 

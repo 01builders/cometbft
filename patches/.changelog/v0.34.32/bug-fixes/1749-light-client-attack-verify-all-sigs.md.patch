@@ -1,0 +1,10 @@
+diff --git a/.changelog/v0.34.32/bug-fixes/1749-light-client-attack-verify-all-sigs.md b/.changelog/v0.34.32/bug-fixes/1749-light-client-attack-verify-all-sigs.md
+deleted file mode 100644
+index 1115c4d19..000000000
+--- a/.changelog/v0.34.32/bug-fixes/1749-light-client-attack-verify-all-sigs.md
++++ /dev/null
+@@ -1,4 +0,0 @@
+-- `[evidence]` When `VerifyCommitLight` & `VerifyCommitLightTrusting` are called as part
+-  of evidence verification, all signatures present in the evidence must be verified
+-  ([\#1749](https://github.com/cometbft/cometbft/pull/1749))
+-

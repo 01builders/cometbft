@@ -1,0 +1,9 @@
+diff --git a/.changelog/v0.34.30/features/1512-metric-mempool-size-bytes.md b/.changelog/v0.34.30/features/1512-metric-mempool-size-bytes.md
+deleted file mode 100644
+index b935dc408..000000000
+--- a/.changelog/v0.34.30/features/1512-metric-mempool-size-bytes.md
++++ /dev/null
+@@ -1,2 +0,0 @@
+-- `[metrics]` Add metric for mempool size in bytes `SizeBytes`.
+-  ([\#1512](https://github.com/cometbft/cometbft/pull/1512))
+\ No newline at end of file
