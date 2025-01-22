@@ -1,0 +1,12 @@
+diff --git a/proto/tendermint/state/types.proto b/proto/tendermint/state/types.proto
+index f3fdc0ef3..9796a8fc5 100644
+--- a/proto/tendermint/state/types.proto
++++ b/proto/tendermint/state/types.proto
+@@ -77,4 +77,7 @@ message State {
+ 
+   // the latest AppHash we've received from calling abci.Commit()
+   bytes app_hash = 13;
++
++  // timeouts to be used for the next block height
++  tendermint.abci.TimeoutsInfo timeouts = 15 [(gogoproto.nullable) = false];
+ }

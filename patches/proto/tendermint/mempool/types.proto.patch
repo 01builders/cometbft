@@ -1,0 +1,24 @@
+diff --git a/proto/tendermint/mempool/types.proto b/proto/tendermint/mempool/types.proto
+index b55d9717b..75602411d 100644
+--- a/proto/tendermint/mempool/types.proto
++++ b/proto/tendermint/mempool/types.proto
+@@ -7,8 +7,18 @@ message Txs {
+   repeated bytes txs = 1;
+ }
+ 
++message SeenTx {
++  bytes tx_key = 1;
++}
++
++message WantTx {
++  bytes tx_key = 1;
++}
++
+ message Message {
+   oneof sum {
+-    Txs txs = 1;
++    Txs    txs     = 1;
++    SeenTx seen_tx = 2;
++    WantTx want_tx = 3;
+   }
+ }
