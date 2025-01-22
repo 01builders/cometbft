@@ -3,19 +3,19 @@ package cometbft.rpc.grpc.v1beta3;
 option  go_package = "github.com/cometbft/cometbft/api/cometbft/rpc/grpc/v1beta3";
 
 import "cometbft/rpc/grpc/v1beta1/types.proto";
-import "cometbft/abci/v2/types.proto";
+import "cometbft/abci/v1beta3/types.proto";
 
-import "cometbft/v2/types/types.proto";
-import "cometbft/v1/p2p/types.proto";
-import "cometbft/v1/crypto/keys.proto";
-import "cometbft/v2/types/validator.proto";
+import "cometbft/types/v2/types.proto";
+import "cometbft/p2p/v1/types.proto";
+import "cometbft/crypto/v1/keys.proto";
+import "cometbft/types/v2/validator.proto";
 import "google/protobuf/timestamp.proto";
 import "gogoproto/gogo.proto";
 
 // ResponseBroadcastTx is a response of broadcasting the transaction.
 message ResponseBroadcastTx {
-  cometbft.abci.v2.ResponseCheckTx check_tx  = 1;
-  cometbft.abci.v2.ExecTxResult    tx_result = 2;
+  cometbft.abci.v1beta3.ResponseCheckTx check_tx  = 1;
+  cometbft.abci.v1beta3.ExecTxResult    tx_result = 2;
 }
 
 // BroadcastAPI is an API for broadcasting transactions.
@@ -88,37 +88,37 @@ message BlockByHashRequest {
 
   // StreamedBlockByHashResponse is a response to a BlockByHashRequest.
   message StreamedBlockByHashResponse {
-      tendermint.types.Part         block_part    = 1;
+      cometbft.types.v2.Part         block_part    = 1;
       // Commit is only set in the first part, and
       // it stays nil in the remaining ones.
-      tendermint.types.Commit       commit        = 2;
+      cometbft.types.v2.Commit       commit        = 2;
       // ValidatorSet is only set in the first part, and
       // it stays nil in the remaining ones.
-      tendermint.types.ValidatorSet validator_set = 3;
+      cometbft.types.v2.ValidatorSet validator_set = 3;
       bool                          is_last       = 4;
     }
     
     // StreamedBlockByHeightResponse is a response to a BlockByHeightRequest.
     message StreamedBlockByHeightResponse {
-      tendermint.types.Part block_part = 1;
+      cometbft.types.v2.Part block_part = 1;
       // Commit is only set in the first part, and
       // it stays nil in the remaining ones.
-      tendermint.types.Commit commit = 2;
+      cometbft.types.v2.Commit commit = 2;
       // ValidatorSet is only set in the first part, and
       // it stays nil in the remaining ones.
-      tendermint.types.ValidatorSet validator_set = 3;
+      cometbft.types.v2.ValidatorSet validator_set = 3;
       bool                       is_last    = 4;
     }
     
     // CommitResponse is a response to a CommitRequest.
     message CommitResponse {
-      tendermint.types.Commit commit = 1;
+      cometbft.types.v2.Commit commit = 1;
     }
     
     // ValidatorSetResponse is a response to a ValidatorSetRequest.
     message ValidatorSetResponse {
       // ValidatorSet the requested validator set.
-      tendermint.types.ValidatorSet validator_set = 1;
+      cometbft.types.v2.ValidatorSet validator_set = 1;
       // Height the height corresponding to the returned
       // validator set.
       int64 height = 2;
@@ -132,7 +132,7 @@ message BlockByHashRequest {
     
     // StatusResponse is a response to a StatusRequest.
     message StatusResponse {
-      tendermint.p2p.DefaultNodeInfo node_info      = 1;
+      cometbft.p2p.v1.DefaultNodeInfo node_info      = 1;
       SyncInfo                       sync_info      = 2;
       ValidatorInfo                  validator_info = 3;
     }
@@ -157,6 +157,6 @@ message BlockByHashRequest {
     // ValidatorInfo is information about a validator.
     message ValidatorInfo {
       bytes                       address      = 1;
-      tendermint.crypto.PublicKey pub_key      = 2;
+      cometbft.crypto.v1.PublicKey pub_key      = 2;
       int64                       voting_power = 3;
     }
