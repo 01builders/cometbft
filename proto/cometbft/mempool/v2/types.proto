@@ -14,6 +14,10 @@ message HaveTx {
   bytes tx_key = 1;
 }
 
+message WantTx {
+  bytes tx_key = 1;
+}
+
 // ResetRoute is sent by the DOG protocol to signal a peer to reset a (random)
 // route to the sender.
 message ResetRoute {
@@ -26,5 +30,6 @@ message Message {
     Txs txs = 1;
     HaveTx have_tx = 2;
     ResetRoute reset_route = 3;
+    WantTx want_tx = 4;
   }
 }
