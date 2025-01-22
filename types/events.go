@@ -19,6 +19,7 @@ const (
 	EventNewBlock            = "NewBlock"
 	EventNewBlockHeader      = "NewBlockHeader"
 	EventNewBlockEvents      = "NewBlockEvents"
+	EventSignedBlock         = "NewSignedBlock"
 	EventNewEvidence         = "NewEvidence"
 	EventPendingTx           = "PendingTx"
 	EventTx                  = "Tx"
@@ -49,6 +50,7 @@ type TMEventData interface { //nolint:revive // this empty interface angers the 
 
 func init() {
 	cmtjson.RegisterType(EventDataNewBlock{}, "tendermint/event/NewBlock")
+	cmtjson.RegisterType(EventDataSignedBlock{}, "tendermint/event/NewSignedBlock")
 	cmtjson.RegisterType(EventDataNewBlockHeader{}, "tendermint/event/NewBlockHeader")
 	cmtjson.RegisterType(EventDataNewBlockEvents{}, "tendermint/event/NewBlockEvents")
 	cmtjson.RegisterType(EventDataNewEvidence{}, "tendermint/event/NewEvidence")
@@ -68,6 +70,15 @@ type EventDataNewBlock struct {
 	Block               *Block                     `json:"block"`
 	BlockID             BlockID                    `json:"block_id"`
 	ResultFinalizeBlock abci.FinalizeBlockResponse `json:"result_finalize_block"`
+}
+
+// EventDataSignedBlock contains all the information needed to verify
+// the data committed in a block.
+type EventDataSignedBlock struct {
+	Header       Header       `json:"header"`
+	Commit       Commit       `json:"commit"`
+	ValidatorSet ValidatorSet `json:"validator_set"`
+	Data         Data         `json:"data"`
 }
 
 type EventDataNewBlockHeader struct {
@@ -160,6 +171,7 @@ var (
 	EventQueryNewEvidence         = QueryForEvent(EventNewEvidence)
 	EventQueryNewRound            = QueryForEvent(EventNewRound)
 	EventQueryNewRoundStep        = QueryForEvent(EventNewRoundStep)
+	EventQueryNewSignedBlock      = QueryForEvent(EventSignedBlock)
 	EventQueryPolka               = QueryForEvent(EventPolka)
 	EventQueryRelock              = QueryForEvent(EventRelock)
 	EventQueryTimeoutPropose      = QueryForEvent(EventTimeoutPropose)
@@ -181,6 +193,7 @@ func QueryForEvent(eventType string) cmtpubsub.Query {
 // BlockEventPublisher publishes all block related events.
 type BlockEventPublisher interface {
 	PublishEventNewBlock(block EventDataNewBlock) error
+	PublishEventNewSignedBlock(event EventDataSignedBlock) error
 	PublishEventNewBlockHeader(header EventDataNewBlockHeader) error
 	PublishEventNewBlockEvents(events EventDataNewBlockEvents) error
 	PublishEventNewEvidence(evidence EventDataNewEvidence) error

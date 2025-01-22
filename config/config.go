@@ -52,7 +52,9 @@ const (
 	MempoolTypeFlood = "flood"
 	MempoolTypeNop   = "nop"
 	MempoolTypeCAT   = "cat"
+)
 
+var (
 	// DefaultTracingTables is a list of tables that are used for storing traces.
 	// This global var is filled by an init function in the schema package. This
 	// allows for the schema package to contain all the relevant logic while

@@ -77,3 +77,7 @@ func (bz HexBytes) Format(s fmt.State, verb rune) {
 		}
 	}
 }
+
+func FromBytes(b []byte) []HexBytes {
+	return []HexBytes{b}
+}
