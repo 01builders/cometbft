@@ -324,6 +324,11 @@ func createMempoolAndMempoolReactor(
 		reactor.SetLogger(logger)
 
 		return mp, reactor
+	case cfg.MempoolTypeCAT:
+		//TODO: create CAT mempool
+		// mp := mempl.NewCATMempool(config.Mempool, proxyApp.Mempool(), state.LastBlockHeight)
+		// reactor := mempl.NewReactor(config.Mempool, mp, waitSync)
+		// return mp, reactor
 	case cfg.MempoolTypeNop:
 		// Strictly speaking, there's no need to have a `mempl.NopMempoolReactor`, but
 		// adding it leads to a cleaner code.
