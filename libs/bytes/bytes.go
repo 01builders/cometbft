@@ -1,6 +1,7 @@
 package bytes
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -41,6 +42,15 @@ func (bz *HexBytes) UnmarshalJSON(data []byte) error {
 	}
 	*bz = bz2
 	return nil
+}
+
+// TODO: is this used anywhere?
+func (bz HexBytes) MarshalDelimited() ([]byte, error) {
+	lenBuf := make([]byte, binary.MaxVarintLen64)
+	length := uint64(len(bz))
+	n := binary.PutUvarint(lenBuf, length)
+
+	return append(lenBuf[:n], bz...), nil
 }
 
 // Bytes fulfills various interfaces in light-client, etc...
