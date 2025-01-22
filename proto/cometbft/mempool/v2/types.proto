@@ -14,6 +14,7 @@ message HaveTx {
   bytes tx_key = 1;
 }
 
+// WantTx is sent by the CAT protocol to signal a peer that the sender wants a transaction.
 message WantTx {
   bytes tx_key = 1;
 }
