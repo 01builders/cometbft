@@ -9,3 +9,13 @@ func MakeNTxs(height, n int64) types.Txs {
 	}
 	return txs
 }
+
+func MakeTenTxs(height int64) (txs []types.Tx) {
+	return MakeNTxs(height, 10)
+}
+
+func MakeData(txs []types.Tx) types.Data {
+	return types.Data{
+		Txs: txs,
+	}
+}

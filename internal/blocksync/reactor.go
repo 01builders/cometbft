@@ -548,7 +548,16 @@ func (bcR *Reactor) processBlock(first, second *types.Block, firstParts *types.P
 		chainID, firstID, first.Height, second.LastCommit)
 
 	if err == nil {
+		var stateMachineValid bool
 		// validate the block before we persist it
+		stateMachineValid, err = bcR.blockExec.ProcessProposal(first, state)
+		if !stateMachineValid {
+			err = fmt.Errorf("application has rejected syncing block (%X) at height %d", first.Hash(), first.Height)
+		}
+		if err != nil { //TODO: keep this?
+			return state, err
+		}
+		//TODO: keep this?
 		err = bcR.blockExec.ValidateBlock(state, first)
 	}
 
@@ -600,6 +609,8 @@ func (bcR *Reactor) processBlock(first, second *types.Block, firstParts *types.P
 	// TODO: same thing for app - but we would need a way to
 	// get the hash without persisting the state
 	state, err = bcR.blockExec.ApplyVerifiedBlock(state, firstID, first, bcR.pool.MaxPeerHeight())
+	// TODO: same thing for app - but we would need a way to get the hash without persisting the state
+	// state, err = bcR.blockExec.ApplyBlock(state, firstID, first, second.LastCommit)//TODO: do we need second.LastCommit?
 	if err != nil {
 		// TODO This is bad, are we zombie?
 		panic(fmt.Sprintf("Failed to process committed block (%d:%X): %v", first.Height, first.Hash(), err))
