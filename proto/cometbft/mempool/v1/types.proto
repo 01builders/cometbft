@@ -8,10 +8,22 @@ message Txs {
   repeated bytes txs = 1;
 }
 
+// WantTx is sent by the CAT protocol to signal a peer that the sender wants a transaction.
+message WantTx {
+  bytes tx_key = 1;
+}
+
+// SeenTx is sent by the CAT protocol to signal a peer that the sender has seen a transaction.
+message SeenTx {
+  bytes tx_key = 1;
+}
+
 // Message is an abstract mempool message.
 message Message {
   // Sum of all possible messages.
   oneof sum {
     Txs txs = 1;
+    SeenTx seen_tx = 2;
+    WantTx want_tx = 3;
   }
 }
