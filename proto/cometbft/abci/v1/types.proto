@@ -106,6 +106,7 @@ message ListSnapshotsRequest {}
 message OfferSnapshotRequest {
   Snapshot snapshot = 1;  // snapshot offered by peers
   bytes    app_hash = 2;  // light client-verified app hash for snapshot height
+  uint64   app_version = 3;  // light client-verified app version for snapshot height
 }
 
 // Request to load a snapshot chunk.
