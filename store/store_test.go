@@ -162,7 +162,7 @@ func TestBlockStoreSaveLoadBlock(t *testing.T) {
 
 	// save a block big enough to have two block parts
 	txs := []types.Tx{make([]byte, types.BlockPartSizeBytes)} // TX taking one block part alone
-	block := state.MakeBlock(bs.Height()+1, txs, new(types.Commit), nil, state.Validators.GetProposer().Address)
+	block := state.MakeBlock(bs.Height()+1, types.MakeData(txs), new(types.Commit), nil, state.Validators.GetProposer().Address)
 	validPartSet, err := block.MakePartSet(types.BlockPartSizeBytes)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, validPartSet.Total(), uint32(2))
@@ -403,7 +403,7 @@ func TestSaveBlockWithExtendedCommitPanicOnAbsentExtension(t *testing.T) {
 			state, bs, _, _, cleanup, _ := makeStateAndBlockStoreAndIndexers()
 			defer cleanup()
 			h := bs.Height() + 1
-			block := state.MakeBlock(h, test.MakeNTxs(h, 10), new(types.Commit), nil, state.Validators.GetProposer().Address)
+			block := state.MakeBlock(h, types.MakeData(test.MakeNTxs(h, 10)), new(types.Commit), nil, state.Validators.GetProposer().Address)
 
 			seenCommit := makeTestExtCommit(block.Header.Height, cmttime.Now())
 			ps, err := block.MakePartSet(types.BlockPartSizeBytes)
@@ -444,7 +444,7 @@ func TestLoadBlockExtendedCommit(t *testing.T) {
 			state, bs, _, _, cleanup, _ := makeStateAndBlockStoreAndIndexers()
 			defer cleanup()
 			h := bs.Height() + 1
-			block := state.MakeBlock(h, test.MakeNTxs(h, 10), new(types.Commit), nil, state.Validators.GetProposer().Address)
+			block := state.MakeBlock(h, types.MakeData(test.MakeNTxs(h, 10)), new(types.Commit), nil, state.Validators.GetProposer().Address)
 			seenCommit := makeTestExtCommit(block.Header.Height, cmttime.Now())
 			ps, err := block.MakePartSet(types.BlockPartSizeBytes)
 			require.NoError(t, err)
@@ -474,7 +474,7 @@ func TestLoadBaseMeta(t *testing.T) {
 	bs := NewBlockStore(dbm.NewMemDB())
 
 	for h := int64(1); h <= 10; h++ {
-		block := state.MakeBlock(h, test.MakeNTxs(h, 10), new(types.Commit), nil, state.Validators.GetProposer().Address)
+		block := state.MakeBlock(h, types.MakeData(test.MakeNTxs(h, 10)), new(types.Commit), nil, state.Validators.GetProposer().Address)
 		partSet, err := block.MakePartSet(types.BlockPartSizeBytes)
 		require.NoError(t, err)
 		seenCommit := makeTestExtCommit(h, cmttime.Now())
@@ -519,7 +519,7 @@ func TestLoadBlockPart(t *testing.T) {
 	require.Contains(t, panicErr.Error(), "unmarshal to cmtproto.Part failed")
 
 	// 3. A good block serialized and saved to the DB should be retrievable
-	block := state.MakeBlock(height, nil, new(types.Commit), nil, state.Validators.GetProposer().Address)
+	block := state.MakeBlock(height, types.MakeData(nil), new(types.Commit), nil, state.Validators.GetProposer().Address)
 	partSet, err := block.MakePartSet(types.BlockPartSizeBytes)
 	require.NoError(t, err)
 	part1 := partSet.GetPart(0)
@@ -598,7 +598,7 @@ func TestPruningService(t *testing.T) {
 
 	// make more than 1000 blocks, to test batch deletions
 	for h := int64(1); h <= 1500; h++ {
-		block := state.MakeBlock(h, test.MakeNTxs(h, 10), new(types.Commit), nil, state.Validators.GetProposer().Address)
+		block := state.MakeBlock(h, types.MakeData(test.MakeNTxs(h, 10)), new(types.Commit), nil, state.Validators.GetProposer().Address)
 		partSet, err := block.MakePartSet(types.BlockPartSizeBytes)
 		require.NoError(t, err)
 		seenCommit := makeTestExtCommit(h, cmttime.Now())
@@ -759,7 +759,7 @@ func TestPruneBlocks(t *testing.T) {
 
 	// make more than 1000 blocks, to test batch deletions
 	for h := int64(1); h <= 1500; h++ {
-		block := state.MakeBlock(h, test.MakeNTxs(h, 10), new(types.Commit), nil, state.Validators.GetProposer().Address)
+		block := state.MakeBlock(h, types.MakeData(test.MakeNTxs(h, 10)), new(types.Commit), nil, state.Validators.GetProposer().Address)
 		partSet, err := block.MakePartSet(types.BlockPartSizeBytes)
 		require.NoError(t, err)
 		seenCommit := makeTestExtCommit(h, cmttime.Now())
@@ -902,7 +902,7 @@ func TestLoadBlockMetaByHash(t *testing.T) {
 	require.NoError(t, err)
 	bs := NewBlockStore(dbm.NewMemDB())
 
-	b1 := state.MakeBlock(state.LastBlockHeight+1, test.MakeNTxs(state.LastBlockHeight+1, 10), new(types.Commit), nil, state.Validators.GetProposer().Address)
+	b1 := state.MakeBlock(state.LastBlockHeight+1, types.MakeData(test.MakeNTxs(state.LastBlockHeight+1, 10)), new(types.Commit), nil, state.Validators.GetProposer().Address)
 	partSet, err := b1.MakePartSet(types.BlockPartSizeBytes)
 	require.NoError(t, err)
 	seenCommit := makeTestExtCommit(1, cmttime.Now())
@@ -918,7 +918,7 @@ func TestBlockFetchAtHeight(t *testing.T) {
 	state, bs, _, _, cleanup, _ := makeStateAndBlockStoreAndIndexers()
 	defer cleanup()
 	require.Equal(t, int64(0), bs.Height(), "initially the height should be zero")
-	block := state.MakeBlock(bs.Height()+1, nil, new(types.Commit), nil, state.Validators.GetProposer().Address)
+	block := state.MakeBlock(bs.Height()+1, types.MakeData(nil), new(types.Commit), nil, state.Validators.GetProposer().Address)
 
 	partSet, err := block.MakePartSet(types.BlockPartSizeBytes)
 	require.NoError(t, err)
@@ -983,4 +983,12 @@ func initStateStoreRetainHeights(stateStore sm.Store, appBlockRH, dcBlockRH, dcB
 		return fmt.Errorf("failed to set initial ABCI results retain height: %w", err)
 	}
 	return nil
+}
+
+func makeUniqueBlock(height int64, state sm.State, lastCommit *types.Commit) *types.Block {
+	data := types.Data{
+		Txs: []types.Tx{types.Tx([]byte{byte(height)})},
+	}
+	block := state.MakeBlock(height, data, lastCommit, nil, state.Validators.GetProposer().Address)
+	return block
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/kit/metrics"
 
 	dbm "github.com/cometbft/cometbft-db"
+	abci "github.com/cometbft/cometbft/api/cometbft/abci/v1"
 	cmtstore "github.com/cometbft/cometbft/api/cometbft/store/v1"
 	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	"github.com/cometbft/cometbft/internal/evidence"
@@ -448,11 +449,15 @@ func (bs *BlockStore) PruneBlocks(height int64, state sm.State) (uint64, int64, 
 
 	evidencePoint := height
 	for h := base; h < height; h++ {
-		meta := bs.LoadBlockMeta(h)
+		block, meta := bs.LoadBlock(h)
 		if meta == nil { // assume already deleted
 			continue
 		}
-
+		for _, tx := range block.Txs {
+			if err := batch.Delete(bs.dbKeyLayout.CalcTxHashKey(tx.Hash())); err != nil {
+				return 0, -1, err
+			}
+		}
 		// This logic is in place to protect data that proves malicious behavior.
 		// If the height is within the evidence age, we continue to persist the header and commit data.
 
@@ -843,4 +848,59 @@ func addTimeSample(h metrics.Histogram, start time.Time) func() {
 	return func() {
 		h.Observe(time.Since(start).Seconds())
 	}
+}
+
+// SaveTxInfo indexes the txs from the block with the given response codes and logs from execution.
+// Only the error logs are saved for failed transactions.
+func (bs *BlockStore) SaveTxInfo(block *types.Block, txResponseCodes []uint32, logs []string) error {
+	if len(txResponseCodes) != len(block.Txs) {
+		return fmt.Errorf("txResponseCodes length mismatch with block txs length")
+	}
+	if len(logs) != len(block.Txs) {
+		return fmt.Errorf("logs length mismatch with block txs length")
+	}
+
+	// Create a new batch
+	batch := bs.db.NewBatch()
+
+	// Batch and save txs from the block
+	for i, tx := range block.Txs {
+		txInfo := cmtstore.TxInfo{
+			Height: block.Height,
+			//nolint:gosec
+			Index: uint32(i),
+			Code:  txResponseCodes[i],
+		}
+		// Set error log for failed txs
+		if txResponseCodes[i] != abci.CodeTypeOK {
+			txInfo.Error = logs[i]
+		}
+		txInfoBytes, err := proto.Marshal(&txInfo)
+		if err != nil {
+			return fmt.Errorf("unable to marshal tx: %w", err)
+		}
+		if err := batch.Set(bs.dbKeyLayout.CalcTxHashKey(tx.Hash()), txInfoBytes); err != nil {
+			return err
+		}
+	}
+
+	// Write the batch to the db
+	return batch.WriteSync()
+}
+
+// LoadTxInfo loads the TxInfo from disk given its hash.
+func (bs *BlockStore) LoadTxInfo(txHash []byte) *cmtstore.TxInfo {
+	bz, err := bs.db.Get(bs.dbKeyLayout.CalcTxHashKey(txHash))
+	if err != nil {
+		panic(err)
+	}
+	if len(bz) == 0 {
+		return nil
+	}
+
+	var txi cmtstore.TxInfo
+	if err = proto.Unmarshal(bz, &txi); err != nil {
+		panic(fmt.Errorf("unmarshal to TxInfo failed: %w", err))
+	}
+	return &txi
 }

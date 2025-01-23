@@ -18,6 +18,8 @@ type BlockKeyLayout interface {
 	CalcExtCommitKey(height int64) []byte
 
 	CalcBlockHashKey(hash []byte) []byte
+
+	CalcTxHashKey(hash []byte) []byte
 }
 
 type v1LegacyLayout struct{}
@@ -52,6 +54,11 @@ func (*v1LegacyLayout) CalcSeenCommitKey(height int64) []byte {
 	return []byte(fmt.Sprintf("SC:%v", height))
 }
 
+// CalcTxHashKey implements BlockKeyLayout.
+func (*v1LegacyLayout) CalcTxHashKey(hash []byte) []byte {
+	return []byte(fmt.Sprintf("TH:%x", hash))
+}
+
 var _ BlockKeyLayout = (*v1LegacyLayout)(nil)
 
 type v2Layout struct{}
@@ -65,6 +72,7 @@ const (
 	prefixSeenCommit  = int64(3)
 	prefixExtCommit   = int64(4)
 	prefixBlockHash   = int64(5)
+	prefixTxHash      = int64(6)
 )
 
 // CalcBlockCommitKey implements BlockKeyLayout.
@@ -115,6 +123,15 @@ func (*v2Layout) CalcExtCommitKey(height int64) []byte {
 // CalcSeenCommitKey implements BlockKeyLayout.
 func (*v2Layout) CalcSeenCommitKey(height int64) []byte {
 	key, err := orderedcode.Append(nil, prefixSeenCommit, height)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
+
+// CalcTxHashKey implements BlockKeyLayout.
+func (*v2Layout) CalcTxHashKey(hash []byte) []byte {
+	key, err := orderedcode.Append(nil, prefixTxHash, string(hash))
 	if err != nil {
 		panic(err)
 	}
