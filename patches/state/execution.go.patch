@@ -1,0 +1,291 @@
+diff --git a/state/execution.go b/state/execution.go
+index fe49e6542..21aff937a 100644
+--- a/state/execution.go
++++ b/state/execution.go
+@@ -26,6 +26,9 @@ type BlockExecutor struct {
+ 	// save state, validators, consensus params, abci responses here
+ 	store Store
+ 
++	// blockStore is optional and  used to store txInfo
++	blockStore BlockStore
++
+ 	// execute the app against this
+ 	proxyApp proxy.AppConnConsensus
+ 
+@@ -50,6 +53,13 @@ func BlockExecutorWithMetrics(metrics *Metrics) BlockExecutorOption {
+ 	}
+ }
+ 
++// WithBlockStore optionally stores txInfo
++func WithBlockStore(blockStore BlockStore) BlockExecutorOption {
++	return func(blockExec *BlockExecutor) {
++		blockExec.blockStore = blockStore
++	}
++}
++
+ // NewBlockExecutor returns a new BlockExecutor with a NopEventBus.
+ // Call SetEventBus to provide one.
+ func NewBlockExecutor(
+@@ -91,6 +101,8 @@ func (blockExec *BlockExecutor) SetEventBus(eventBus types.BlockEventPublisher)
+ // and txs from the mempool. The max bytes must be big enough to fit the commit.
+ // Up to 1/10th of the block space is allcoated for maximum sized evidence.
+ // The rest is given to txs, up to the max gas.
++//
++// Contract: application will not return more bytes than are sent over the wire.
+ func (blockExec *BlockExecutor) CreateProposalBlock(
+ 	height int64,
+ 	state State, commit *types.Commit,
+@@ -102,18 +114,93 @@ func (blockExec *BlockExecutor) CreateProposalBlock(
+ 
+ 	evidence, evSize := blockExec.evpool.PendingEvidence(state.ConsensusParams.Evidence.MaxBytes)
+ 
+-	// Fetch a limited amount of valid txs
+ 	maxDataBytes := types.MaxDataBytes(maxBytes, evSize, state.Validators.Size())
+ 
+ 	txs := blockExec.mempool.ReapMaxBytesMaxGas(maxDataBytes, maxGas)
+ 
+-	return state.MakeBlock(height, txs, commit, evidence, proposerAddr)
++	var timestamp time.Time
++	if height == state.InitialHeight {
++		timestamp = state.LastBlockTime // genesis time
++	} else {
++		timestamp = MedianTime(commit, state.LastValidators)
++	}
++
++	preparedProposal, err := blockExec.proxyApp.PrepareProposalSync(
++		abci.RequestPrepareProposal{
++			BlockData:     &cmtproto.Data{Txs: txs.ToSliceOfBytes()},
++			BlockDataSize: maxDataBytes,
++			ChainId:       state.ChainID,
++			Height:        height,
++			Time:          timestamp,
++		},
++	)
++	if err != nil {
++		// The App MUST ensure that only valid (and hence 'processable') transactions
++		// enter the mempool. Hence, at this point, we can't have any non-processable
++		// transaction causing an error.
++		//
++		// Also, the App can simply skip any transaction that could cause any kind of trouble.
++		// Either way, we can not recover in a meaningful way, unless we skip proposing
++		// this block, repair what caused the error and try again. Hence, we panic on
++		// purpose for now.
++		panic(err)
++	}
++	rawNewData := preparedProposal.GetBlockData()
++
++	rejectedTxs := len(rawNewData.Txs) - len(txs)
++	if rejectedTxs > 0 {
++		blockExec.metrics.RejectedTransactions.Add(float64(rejectedTxs))
++	}
++
++	var blockDataSize int
++	for _, tx := range rawNewData.GetTxs() {
++		blockDataSize += len(tx)
++
++		if maxDataBytes < int64(blockDataSize) {
++			panic("block data exceeds max amount of allowed bytes")
++		}
++	}
++
++	newData, err := types.DataFromProto(rawNewData)
++	if err != nil {
++		// todo(evan): see if we can get rid of this panic
++		panic(err)
++	}
++
++	return state.MakeBlock(
++		height,
++		newData,
++		commit,
++		evidence,
++		proposerAddr,
++	)
++}
++
++func (blockExec *BlockExecutor) ProcessProposal(
++	block *types.Block,
++) (bool, error) {
++	pData := block.Data.ToProto()
++	req := abci.RequestProcessProposal{
++		BlockData: &pData,
++		Header:    *block.Header.ToProto(),
++	}
++
++	resp, err := blockExec.proxyApp.ProcessProposalSync(req)
++	if err != nil {
++		return false, ErrInvalidBlock(err)
++	}
++
++	if resp.IsRejected() {
++		blockExec.metrics.ProcessProposalRejected.Add(1)
++	}
++
++	return resp.IsOK(), nil
+ }
+ 
+ // ValidateBlock validates the given block against the given state.
+ // If the block is invalid, it returns an error.
+ // Validation does not mutate state, but does require historical information from the stateDB,
+-// ie. to verify evidence from a validator at an old height.
++// i.e., to verify evidence from a validator at an old height.
+ func (blockExec *BlockExecutor) ValidateBlock(state State, block *types.Block) error {
+ 	err := validateBlock(state, block)
+ 	if err != nil {
+@@ -129,7 +216,10 @@ func (blockExec *BlockExecutor) ValidateBlock(state State, block *types.Block) e
+ // from outside this package to process and commit an entire block.
+ // It takes a blockID to avoid recomputing the parts hash.
+ func (blockExec *BlockExecutor) ApplyBlock(
+-	state State, blockID types.BlockID, block *types.Block,
++	state State,
++	blockID types.BlockID,
++	block *types.Block,
++	commit *types.Commit,
+ ) (State, int64, error) {
+ 
+ 	if err := validateBlock(state, block); err != nil {
+@@ -153,6 +243,17 @@ func (blockExec *BlockExecutor) ApplyBlock(
+ 		return state, 0, err
+ 	}
+ 
++	// Save indexing info of the transaction.
++	// This needs to be done prior to saving state
++	// for correct crash recovery
++	if blockExec.blockStore != nil {
++		respCodes := getResponseCodes(abciResponses.DeliverTxs)
++		logs := getLogs(abciResponses.DeliverTxs)
++		if err := blockExec.blockStore.SaveTxInfo(block, respCodes, logs); err != nil {
++			return state, 0, err
++		}
++	}
++
+ 	fail.Fail() // XXX
+ 
+ 	// validate the validator updates and convert to CometBFT types
+@@ -197,7 +298,7 @@ func (blockExec *BlockExecutor) ApplyBlock(
+ 
+ 	// Events are fired after everything else.
+ 	// NOTE: if we crash between Commit and Save, events wont be fired during replay
+-	fireEvents(blockExec.logger, blockExec.eventBus, block, abciResponses, validatorUpdates)
++	fireEvents(blockExec.logger, blockExec.eventBus, block, abciResponses, validatorUpdates, state.LastValidators, commit)
+ 
+ 	return state, retainHeight, nil
+ }
+@@ -317,6 +418,11 @@ func execBlockOnProxyApp(
+ 
+ 	// run txs of block
+ 	for _, tx := range block.Txs {
++		// Unwrap the blob tx if necessary.
++		blobTx, isBlobTx := types.UnmarshalBlobTx(tx)
++		if isBlobTx {
++			tx = blobTx.Tx
++		}
+ 		proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
+ 		if err := proxyAppConn.Error(); err != nil {
+ 			return nil, err
+@@ -408,7 +514,7 @@ func updateState(
+ 	validatorUpdates []*types.Validator,
+ ) (State, error) {
+ 
+-	// Copy the valset so we can apply changes from EndBlock
++	// Copy the valset so that we can apply changes from EndBlock
+ 	// and update s.LastValidators and s.Validators.
+ 	nValSet := state.NextValidators.Copy()
+ 
+@@ -419,7 +525,7 @@ func updateState(
+ 		if err != nil {
+ 			return state, fmt.Errorf("error changing validator set: %v", err)
+ 		}
+-		// Change results from this height but only applies to the next next height.
++		// Change results from this height but only applies to the next height.
+ 		lastHeightValsChanged = header.Height + 1 + 1
+ 	}
+ 
+@@ -447,7 +553,7 @@ func updateState(
+ 
+ 	// NOTE: the AppHash has not been populated.
+ 	// It will be filled on state.Save.
+-	return State{
++	s := State{
+ 		Version:                          nextVersion,
+ 		ChainID:                          state.ChainID,
+ 		InitialHeight:                    state.InitialHeight,
+@@ -462,7 +568,11 @@ func updateState(
+ 		LastHeightConsensusParamsChanged: lastHeightParamsChanged,
+ 		LastResultsHash:                  ABCIResponsesResultsHash(abciResponses),
+ 		AppHash:                          nil,
+-	}, nil
++		TimeoutCommit:                    abciResponses.EndBlock.Timeouts.TimeoutCommit,
++		TimeoutPropose:                   abciResponses.EndBlock.Timeouts.TimeoutPropose,
++	}
++
++	return s, nil
+ }
+ 
+ // Fire NewBlock, NewBlockHeader.
+@@ -474,6 +584,8 @@ func fireEvents(
+ 	block *types.Block,
+ 	abciResponses *cmtstate.ABCIResponses,
+ 	validatorUpdates []*types.Validator,
++	currentValidatorSet *types.ValidatorSet,
++	seenCommit *types.Commit,
+ ) {
+ 	if err := eventBus.PublishEventNewBlock(types.EventDataNewBlock{
+ 		Block:            block,
+@@ -483,6 +595,18 @@ func fireEvents(
+ 		logger.Error("failed publishing new block", "err", err)
+ 	}
+ 
++	if seenCommit != nil {
++		err := eventBus.PublishEventNewSignedBlock(types.EventDataSignedBlock{
++			Header:       block.Header,
++			Commit:       *seenCommit,
++			ValidatorSet: *currentValidatorSet,
++			Data:         block.Data,
++		})
++		if err != nil {
++			logger.Error("failed publishing new signed block", "err", err)
++		}
++	}
++
+ 	if err := eventBus.PublishEventNewBlockHeader(types.EventDataNewBlockHeader{
+ 		Header:           block.Header,
+ 		NumTxs:           int64(len(block.Txs)),
+@@ -504,8 +628,15 @@ func fireEvents(
+ 	}
+ 
+ 	for i, tx := range block.Data.Txs {
++		// Unwrap the blob tx and just publish the PFB without the blobs. We want
++		// the tx indexer to only be concerned with PFBs.
++		blobTx, isBlobTx := types.UnmarshalBlobTx(tx)
++		if isBlobTx {
++			tx = blobTx.Tx
++		}
+ 		if err := eventBus.PublishEventTx(types.EventDataTx{TxResult: abci.TxResult{
+ 			Height: block.Height,
++			//nolint:gosec
+ 			Index:  uint32(i),
+ 			Tx:     tx,
+ 			Result: *(abciResponses.DeliverTxs[i]),
+@@ -550,3 +681,21 @@ func ExecCommitBlock(
+ 	// ResponseCommit has no error or log, just data
+ 	return res.Data, nil
+ }
++
++// getResponseCodes gets response codes from a list of ResponseDeliverTx.
++func getResponseCodes(responses []*abci.ResponseDeliverTx) []uint32 {
++	responseCodes := make([]uint32, len(responses))
++	for i, response := range responses {
++		responseCodes[i] = response.Code
++	}
++	return responseCodes
++}
++
++// getLogs gets logs from a list of ResponseDeliverTx.
++func getLogs(responses []*abci.ResponseDeliverTx) []string {
++	logs := make([]string, len(responses))
++	for i, response := range responses {
++		logs[i] = response.Log
++	}
++	return logs
++}

@@ -1,0 +1,12 @@
+diff --git a/consensus/wal.go b/consensus/wal.go
+index 90c7e208c..4e9aa7f74 100644
+--- a/consensus/wal.go
++++ b/consensus/wal.go
+@@ -313,6 +313,7 @@ func (enc *WALEncoder) Encode(v *TimedWALMessage) error {
+ 	}
+ 
+ 	crc := crc32.Checksum(data, crc32c)
++	//nolint:gosec
+ 	length := uint32(len(data))
+ 	if length > maxMsgSizeBytes {
+ 		return fmt.Errorf("msg is too big: %d bytes, max: %d bytes", length, maxMsgSizeBytes)

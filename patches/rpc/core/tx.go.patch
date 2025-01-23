@@ -1,0 +1,237 @@
+diff --git a/rpc/core/tx.go b/rpc/core/tx.go
+index fe24f5c17..96e994a25 100644
+--- a/rpc/core/tx.go
++++ b/rpc/core/tx.go
+@@ -5,19 +5,31 @@ import (
+ 	"fmt"
+ 	"sort"
+ 
++	abcitypes "github.com/tendermint/tendermint/abci/types"
+ 	cmtmath "github.com/tendermint/tendermint/libs/math"
+ 	cmtquery "github.com/tendermint/tendermint/libs/pubsub/query"
++	"github.com/tendermint/tendermint/pkg/consts"
++	cmtproto "github.com/tendermint/tendermint/proto/tendermint/types"
+ 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
+ 	rpctypes "github.com/tendermint/tendermint/rpc/jsonrpc/types"
++	"github.com/tendermint/tendermint/state"
+ 	"github.com/tendermint/tendermint/state/txindex/null"
+ 	"github.com/tendermint/tendermint/types"
+ )
+ 
++const (
++	TxStatusUnknown   string = "UNKNOWN"
++	TxStatusPending   string = "PENDING"
++	TxStatusEvicted   string = "EVICTED"
++	TxStatusCommitted string = "COMMITTED"
++)
++
+ // Tx allows you to query the transaction results. `nil` could mean the
+ // transaction is in the mempool, invalidated, or was not sent in the first
+ // place.
+ // More: https://docs.cometbft.com/v0.34/rpc/#/Info/tx
+ func Tx(ctx *rpctypes.Context, hash []byte, prove bool) (*ctypes.ResultTx, error) {
++	env := GetEnvironment()
+ 	// if index is disabled, return error
+ 	if _, ok := env.TxIndexer.(*null.TxIndex); ok {
+ 		return nil, fmt.Errorf("transaction indexing is disabled")
+@@ -35,10 +47,12 @@ func Tx(ctx *rpctypes.Context, hash []byte, prove bool) (*ctypes.ResultTx, error
+ 	height := r.Height
+ 	index := r.Index
+ 
+-	var proof types.TxProof
++	var shareProof types.ShareProof
+ 	if prove {
+-		block := env.BlockStore.LoadBlock(height)
+-		proof = block.Data.Txs.Proof(int(index)) // XXX: overflow on 32-bit machines
++		shareProof, err = proveTx(height, index)
++		if err != nil {
++			return nil, err
++		}
+ 	}
+ 
+ 	return &ctypes.ResultTx{
+@@ -47,7 +61,7 @@ func Tx(ctx *rpctypes.Context, hash []byte, prove bool) (*ctypes.ResultTx, error
+ 		Index:    index,
+ 		TxResult: r.Result,
+ 		Tx:       r.Tx,
+-		Proof:    proof,
++		Proof:    shareProof,
+ 	}, nil
+ }
+ 
+@@ -62,6 +76,7 @@ func TxSearch(
+ 	orderBy string,
+ ) (*ctypes.ResultTxSearch, error) {
+ 
++	env := GetEnvironment()
+ 	// if index is disabled, return error
+ 	if _, ok := env.TxIndexer.(*null.TxIndex); ok {
+ 		return nil, errors.New("transaction indexing is disabled")
+@@ -115,10 +130,12 @@ func TxSearch(
+ 	for i := skipCount; i < skipCount+pageSize; i++ {
+ 		r := results[i]
+ 
+-		var proof types.TxProof
++		var shareProof types.ShareProof
+ 		if prove {
+-			block := env.BlockStore.LoadBlock(r.Height)
+-			proof = block.Data.Txs.Proof(int(r.Index)) // XXX: overflow on 32-bit machines
++			shareProof, err = proveTx(r.Height, r.Index)
++			if err != nil {
++				return nil, err
++			}
+ 		}
+ 
+ 		apiResults = append(apiResults, &ctypes.ResultTx{
+@@ -127,13 +144,150 @@ func TxSearch(
+ 			Index:    r.Index,
+ 			TxResult: r.Result,
+ 			Tx:       r.Tx,
+-			Proof:    proof,
++			Proof:    shareProof,
+ 		})
+ 	}
+ 
+ 	return &ctypes.ResultTxSearch{Txs: apiResults, TotalCount: totalCount}, nil
+ }
+ 
++func proveTx(height int64, index uint32) (types.ShareProof, error) {
++	var (
++		pShareProof cmtproto.ShareProof
++		shareProof  types.ShareProof
++	)
++	env := GetEnvironment()
++	rawBlock, err := loadRawBlock(env.BlockStore, height)
++	if err != nil {
++		return shareProof, err
++	}
++	res, err := env.ProxyAppQuery.QuerySync(abcitypes.RequestQuery{
++		Data: rawBlock,
++		Path: fmt.Sprintf(consts.TxInclusionProofQueryPath, index),
++	})
++	if err != nil {
++		return shareProof, err
++	}
++	err = pShareProof.Unmarshal(res.Value)
++	if err != nil {
++		return shareProof, err
++	}
++	shareProof, err = types.ShareProofFromProto(pShareProof)
++	if err != nil {
++		return shareProof, err
++	}
++	return shareProof, nil
++}
++
++// ProveShares creates an NMT proof for a set of shares to a set of rows. It is
++// end exclusive.
++// Deprecated: Use ProveSharesV2 instead.
++func ProveShares(
++	_ *rpctypes.Context,
++	height int64,
++	startShare uint64,
++	endShare uint64,
++) (types.ShareProof, error) {
++	var (
++		pShareProof cmtproto.ShareProof
++		shareProof  types.ShareProof
++	)
++	env := GetEnvironment()
++	rawBlock, err := loadRawBlock(env.BlockStore, height)
++	if err != nil {
++		return shareProof, err
++	}
++	res, err := env.ProxyAppQuery.QuerySync(abcitypes.RequestQuery{
++		Data: rawBlock,
++		Path: fmt.Sprintf(consts.ShareInclusionProofQueryPath, startShare, endShare),
++	})
++	if err != nil {
++		return shareProof, err
++	}
++	if res.Value == nil && res.Log != "" {
++		// we can make the assumption that for custom queries, if the value is nil
++		// and some logs have been emitted, then an error happened.
++		return types.ShareProof{}, errors.New(res.Log)
++	}
++	err = pShareProof.Unmarshal(res.Value)
++	if err != nil {
++		return shareProof, err
++	}
++	shareProof, err = types.ShareProofFromProto(pShareProof)
++	if err != nil {
++		return shareProof, err
++	}
++	return shareProof, nil
++}
++
++// TxStatus retrieves the status of a transaction by its hash. It returns a ResultTxStatus
++// with the transaction's height and index if committed, or its pending, evicted, or unknown status.
++// It also includes the execution code and log for failed txs.
++func TxStatus(ctx *rpctypes.Context, hash []byte) (*ctypes.ResultTxStatus, error) {
++	env := GetEnvironment()
++
++	// Check if the tx has been committed
++	txInfo := env.BlockStore.LoadTxInfo(hash)
++	if txInfo != nil {
++		return &ctypes.ResultTxStatus{Height: txInfo.Height, Index: txInfo.Index, ExecutionCode: txInfo.Code, Error: txInfo.Error, Status: TxStatusCommitted}, nil
++	}
++
++	// Get the tx key from the hash
++	txKey, err := types.TxKeyFromBytes(hash)
++	if err != nil {
++		return nil, fmt.Errorf("failed to get tx key from hash: %v", err)
++	}
++
++	// Check if the tx is in the mempool
++	txInMempool, ok := env.Mempool.GetTxByKey(txKey)
++	if txInMempool != nil && ok {
++		return &ctypes.ResultTxStatus{Status: TxStatusPending}, nil
++	}
++
++	// Check if the tx is evicted
++	isEvicted := env.Mempool.WasRecentlyEvicted(txKey)
++	if isEvicted {
++		return &ctypes.ResultTxStatus{Status: TxStatusEvicted}, nil
++	}
++
++	// If the tx is not in the mempool, evicted, or committed, return unknown
++	return &ctypes.ResultTxStatus{Status: TxStatusUnknown}, nil
++}
++
++// ProveSharesV2 creates a proof for a set of shares to the data root.
++// The range is end exclusive.
++func ProveSharesV2(
++	ctx *rpctypes.Context,
++	height int64,
++	startShare uint64,
++	endShare uint64,
++) (*ctypes.ResultShareProof, error) {
++	shareProof, err := ProveShares(ctx, height, startShare, endShare)
++	if err != nil {
++		return nil, err
++	}
++	return &ctypes.ResultShareProof{ShareProof: shareProof}, nil
++}
++
++func loadRawBlock(bs state.BlockStore, height int64) ([]byte, error) {
++	var blockMeta = bs.LoadBlockMeta(height)
++	if blockMeta == nil {
++		return nil, fmt.Errorf("no block found for height %d", height)
++	}
++
++	buf := []byte{}
++	for i := 0; i < int(blockMeta.BlockID.PartSetHeader.Total); i++ {
++		part := bs.LoadBlockPart(height, i)
++		// If the part is missing (e.g. since it has been deleted after we
++		// loaded the block meta) we consider the whole block to be missing.
++		if part == nil {
++			return nil, fmt.Errorf("missing block part at height %d part %d", height, i)
++		}
++		buf = append(buf, part.Bytes...)
++	}
++	return buf, nil
++}
++
+ // TxSearchMatchEvents allows you to query for multiple transactions results and match the
+ // query attributes to a common event. It returns a
+ // list of transactions (maximum ?per_page entries) and the total count.

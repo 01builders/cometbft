@@ -1,0 +1,21 @@
+diff --git a/abci/example/kvstore/persistent_kvstore.go b/abci/example/kvstore/persistent_kvstore.go
+index 7e2243358..3cd8accc6 100644
+--- a/abci/example/kvstore/persistent_kvstore.go
++++ b/abci/example/kvstore/persistent_kvstore.go
+@@ -173,6 +173,16 @@ func (app *PersistentKVStoreApplication) ApplySnapshotChunk(
+ 	return types.ResponseApplySnapshotChunk{Result: types.ResponseApplySnapshotChunk_ABORT}
+ }
+ 
++func (app *PersistentKVStoreApplication) PrepareProposal(
++	req types.RequestPrepareProposal) types.ResponsePrepareProposal {
++	return app.app.PrepareProposal(req)
++}
++
++func (app *PersistentKVStoreApplication) ProcessProposal(
++	req types.RequestProcessProposal) types.ResponseProcessProposal {
++	return types.ResponseProcessProposal{Result: types.ResponseProcessProposal_ACCEPT}
++}
++
+ //---------------------------------------------
+ // update validators
+ 

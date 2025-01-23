@@ -1,0 +1,39 @@
+diff --git a/abci/types/messages.go b/abci/types/messages.go
+index f18f72bb3..1a5289db4 100644
+--- a/abci/types/messages.go
++++ b/abci/types/messages.go
+@@ -160,6 +160,18 @@ func ToRequestApplySnapshotChunk(req RequestApplySnapshotChunk) *Request {
+ 	}
+ }
+ 
++func ToRequestPrepareProposal(req RequestPrepareProposal) *Request {
++	return &Request{
++		Value: &Request_PrepareProposal{&req},
++	}
++}
++
++func ToRequestProcessProposal(req RequestProcessProposal) *Request {
++	return &Request{
++		Value: &Request_ProcessProposal{&req},
++	}
++}
++
+ //----------------------------------------
+ 
+ func ToResponseException(errStr string) *Response {
+@@ -257,3 +269,15 @@ func ToResponseApplySnapshotChunk(res ResponseApplySnapshotChunk) *Response {
+ 		Value: &Response_ApplySnapshotChunk{&res},
+ 	}
+ }
++
++func ToResponsePrepareProposal(res ResponsePrepareProposal) *Response {
++	return &Response{
++		Value: &Response_PrepareProposal{&res},
++	}
++}
++
++func ToResponseProcessProposal(res ResponseProcessProposal) *Response {
++	return &Response{
++		Value: &Response_ProcessProposal{&res},
++	}
++}

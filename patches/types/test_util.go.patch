@@ -1,0 +1,58 @@
+diff --git a/types/test_util.go b/types/test_util.go
+index 51e321cdb..7eea6f265 100644
+--- a/types/test_util.go
++++ b/types/test_util.go
+@@ -5,8 +5,6 @@ import (
+ 	"time"
+ 
+ 	cmtproto "github.com/tendermint/tendermint/proto/tendermint/types"
+-	cmtversion "github.com/tendermint/tendermint/proto/tendermint/version"
+-	"github.com/tendermint/tendermint/version"
+ )
+ 
+ func MakeCommit(blockID BlockID, height int64, round int32,
+@@ -20,12 +18,13 @@ func MakeCommit(blockID BlockID, height int64, round int32,
+ 		}
+ 		vote := &Vote{
+ 			ValidatorAddress: pubKey.Address(),
+-			ValidatorIndex:   int32(i),
+-			Height:           height,
+-			Round:            round,
+-			Type:             cmtproto.PrecommitType,
+-			BlockID:          blockID,
+-			Timestamp:        now,
++			//nolint:gosec
++			ValidatorIndex: int32(i),
++			Height:         height,
++			Round:          round,
++			Type:           cmtproto.PrecommitType,
++			BlockID:        blockID,
++			Timestamp:      now,
+ 		}
+ 
+ 		_, err = signAddVote(validators[i], vote, voteSet)
+@@ -81,21 +80,8 @@ func MakeVote(
+ 	return vote, nil
+ }
+ 
+-// MakeBlock returns a new block with an empty header, except what can be
+-// computed from itself.
+-// It populates the same set of fields validated by ValidateBasic.
+-func MakeBlock(height int64, txs []Tx, lastCommit *Commit, evidence []Evidence) *Block {
+-	block := &Block{
+-		Header: Header{
+-			Version: cmtversion.Consensus{Block: version.BlockProtocol, App: 0},
+-			Height:  height,
+-		},
+-		Data: Data{
+-			Txs: txs,
+-		},
+-		Evidence:   EvidenceData{Evidence: evidence},
+-		LastCommit: lastCommit,
++func makeData(txs []Tx) Data {
++	return Data{
++		Txs: txs,
+ 	}
+-	block.fillHeader()
+-	return block
+ }

@@ -1,0 +1,178 @@
+diff --git a/consensus/replay_test.go b/consensus/replay_test.go
+index 30fdc38f7..90a7710ab 100644
+--- a/consensus/replay_test.go
++++ b/consensus/replay_test.go
+@@ -27,10 +27,13 @@ import (
+ 	mempl "github.com/tendermint/tendermint/mempool"
+ 	"github.com/tendermint/tendermint/privval"
+ 	cmtstate "github.com/tendermint/tendermint/proto/tendermint/state"
++	cmtstore "github.com/tendermint/tendermint/proto/tendermint/store"
+ 	cmtproto "github.com/tendermint/tendermint/proto/tendermint/types"
+ 	"github.com/tendermint/tendermint/proxy"
+ 	sm "github.com/tendermint/tendermint/state"
++	"github.com/tendermint/tendermint/state/test/factory"
+ 	"github.com/tendermint/tendermint/types"
++	"github.com/tendermint/tendermint/version"
+ )
+ 
+ func TestMain(m *testing.M) {
+@@ -56,7 +59,7 @@ func TestMain(m *testing.M) {
+ // the `Handshake Tests` are for failures in applying the block.
+ // With the help of the WAL, we can recover from it all!
+ 
+-//------------------------------------------------------------------------------------------
++// ------------------------------------------------------------------------------------------
+ // WAL Tests
+ 
+ // TODO: It would be better to verify explicitly which states we can recover from without the wal
+@@ -318,7 +321,7 @@ var (
+ 	sim testSim
+ )
+ 
+-//---------------------------------------
++// ---------------------------------------
+ // Test handshake/replay
+ 
+ // 0 - all synced up
+@@ -753,13 +756,14 @@ func testHandshakeReplay(t *testing.T, config *cfg.Config, nBlocks int, mode uin
+ 		}
+ 	})
+ 
+-	err := handshaker.Handshake(proxyApp)
++	softwareVersion, err := handshaker.Handshake(proxyApp)
+ 	if expectError {
+ 		require.Error(t, err)
+ 		return
+ 	} else if err != nil {
+ 		t.Fatalf("Error on abci handshake: %v", err)
+ 	}
++	require.Equal(t, softwareVersion, version.ABCISemVer)
+ 
+ 	// get the latest app hash from the app
+ 	res, err := proxyApp.Query().InfoSync(abci.RequestInfo{Version: ""})
+@@ -792,7 +796,7 @@ func applyBlock(stateStore sm.Store, st sm.State, blk *types.Block, proxyApp pro
+ 	blockExec := sm.NewBlockExecutor(stateStore, log.TestingLogger(), proxyApp.Consensus(), mempool, evpool)
+ 
+ 	blkID := types.BlockID{Hash: blk.Hash(), PartSetHeader: blk.MakePartSet(testPartSize).Header()}
+-	newState, _, err := blockExec.ApplyBlock(st, blkID, blk)
++	newState, _, err := blockExec.ApplyBlock(st, blkID, blk, nil)
+ 	if err != nil {
+ 		panic(err)
+ 	}
+@@ -931,7 +935,8 @@ func TestHandshakePanicsIfAppReturnsWrongAppHash(t *testing.T) {
+ 
+ 		assert.Panics(t, func() {
+ 			h := NewHandshaker(stateStore, state, store, genDoc)
+-			if err = h.Handshake(proxyApp); err != nil {
++			_, err = h.Handshake(proxyApp)
++			if err != nil {
+ 				t.Log(err)
+ 			}
+ 		})
+@@ -955,7 +960,8 @@ func TestHandshakePanicsIfAppReturnsWrongAppHash(t *testing.T) {
+ 
+ 		assert.Panics(t, func() {
+ 			h := NewHandshaker(stateStore, state, store, genDoc)
+-			if err = h.Handshake(proxyApp); err != nil {
++			_, err = h.Handshake(proxyApp)
++			if err != nil {
+ 				t.Log(err)
+ 			}
+ 		})
+@@ -1005,7 +1011,13 @@ func makeBlock(state sm.State, lastBlock *types.Block, lastBlockMeta *types.Bloc
+ 			lastBlockMeta.BlockID, []types.CommitSig{vote.CommitSig()})
+ 	}
+ 
+-	return state.MakeBlock(height, []types.Tx{}, lastCommit, nil, state.Validators.GetProposer().Address)
++	return state.MakeBlock(
++		height,
++		factory.MakeData([]types.Tx{}),
++		lastCommit,
++		nil,
++		state.Validators.GetProposer().Address,
++	)
+ }
+ 
+ type badApp struct {
+@@ -1030,7 +1042,7 @@ func (app *badApp) Commit() abci.ResponseCommit {
+ 	panic("either allHashesAreWrong or onlyLastHashIsWrong must be set")
+ }
+ 
+-//--------------------------
++// --------------------------
+ // utils for making blocks
+ 
+ func makeBlockchainFromWAL(wal WAL) ([]*types.Block, []*types.Commit, error) {
+@@ -1176,8 +1188,9 @@ func stateAndStore(
+ 	return stateDB, state, store
+ }
+ 
+-//----------------------------------
++// ----------------------------------
+ // mock block store
++var _ sm.BlockStore = &mockBlockStore{}
+ 
+ type mockBlockStore struct {
+ 	config  *cfg.Config
+@@ -1200,7 +1213,7 @@ func (bs *mockBlockStore) LoadBlock(height int64) *types.Block { return bs.chain
+ func (bs *mockBlockStore) LoadBlockByHash(hash []byte) *types.Block {
+ 	return bs.chain[int64(len(bs.chain))-1]
+ }
+-
++func (bs *mockBlockStore) LoadBlockMetaByHash(hash []byte) *types.BlockMeta { return nil }
+ func (bs *mockBlockStore) LoadBlockMeta(height int64) *types.BlockMeta {
+ 	block := bs.chain[height-1]
+ 	return &types.BlockMeta{
+@@ -1211,6 +1224,10 @@ func (bs *mockBlockStore) LoadBlockMeta(height int64) *types.BlockMeta {
+ func (bs *mockBlockStore) LoadBlockPart(height int64, index int) *types.Part { return nil }
+ func (bs *mockBlockStore) SaveBlock(block *types.Block, blockParts *types.PartSet, seenCommit *types.Commit) {
+ }
++func (bs *mockBlockStore) SaveTxInfo(block *types.Block, txResponseCodes []uint32, logs []string) error {
++	return nil
++}
++func (bs *mockBlockStore) LoadTxInfo(hash []byte) *cmtstore.TxInfo { return &cmtstore.TxInfo{} }
+ 
+ func (bs *mockBlockStore) LoadBlockCommit(height int64) *types.Commit {
+ 	return bs.commits[height-1]
+@@ -1231,7 +1248,7 @@ func (bs *mockBlockStore) PruneBlocks(height int64) (uint64, error) {
+ 	return pruned, nil
+ }
+ 
+-//---------------------------------------
++// ---------------------------------------
+ // Test handshake/init chain
+ 
+ func TestHandshakeUpdatesValidators(t *testing.T) {
+@@ -1264,9 +1281,12 @@ func TestHandshakeUpdatesValidators(t *testing.T) {
+ 			t.Error(err)
+ 		}
+ 	})
+-	if err := handshaker.Handshake(proxyApp); err != nil {
++	version, err := handshaker.Handshake(proxyApp)
++	if err != nil {
+ 		t.Fatalf("Error on abci handshake: %v", err)
+ 	}
++	require.Equal(t, customVersion, version)
++
+ 	// reload the state, check the validator set was updated
+ 	state, err = stateStore.Load()
+ 	require.NoError(t, err)
+@@ -1277,6 +1297,8 @@ func TestHandshakeUpdatesValidators(t *testing.T) {
+ 	assert.Equal(t, newValAddr, expectValAddr)
+ }
+ 
++const customVersion = "v1.0.0"
++
+ // returns the vals on InitChain
+ type initChainApp struct {
+ 	abci.BaseApplication
+@@ -1288,3 +1310,9 @@ func (ica *initChainApp) InitChain(req abci.RequestInitChain) abci.ResponseInitC
+ 		Validators: ica.vals,
+ 	}
+ }
++
++func (ica *initChainApp) Info(req abci.RequestInfo) abci.ResponseInfo {
++	return abci.ResponseInfo{
++		Version: customVersion,
++	}
++}

@@ -1,0 +1,78 @@
+diff --git a/rpc/core/mempool.go b/rpc/core/mempool.go
+index 1eea1e8e2..0aec02cff 100644
+--- a/rpc/core/mempool.go
++++ b/rpc/core/mempool.go
+@@ -13,6 +13,8 @@ import (
+ 	"github.com/tendermint/tendermint/types"
+ )
+ 
++var ErrTimedOutWaitingForTx = errors.New("timed out waiting for tx to be included in a block")
++
+ //-----------------------------------------------------------------------------
+ // NOTE: tx should be signed, but this is only checked at the app level (not by CometBFT!)
+ 
+@@ -20,7 +22,7 @@ import (
+ // CheckTx nor DeliverTx results.
+ // More: https://docs.cometbft.com/v0.34/rpc/#/Tx/broadcast_tx_async
+ func BroadcastTxAsync(ctx *rpctypes.Context, tx types.Tx) (*ctypes.ResultBroadcastTx, error) {
+-	err := env.Mempool.CheckTx(tx, nil, mempl.TxInfo{})
++	err := GetEnvironment().Mempool.CheckTx(tx, nil, mempl.TxInfo{})
+ 
+ 	if err != nil {
+ 		return nil, err
+@@ -33,7 +35,7 @@ func BroadcastTxAsync(ctx *rpctypes.Context, tx types.Tx) (*ctypes.ResultBroadca
+ // More: https://docs.cometbft.com/v0.34/rpc/#/Tx/broadcast_tx_sync
+ func BroadcastTxSync(ctx *rpctypes.Context, tx types.Tx) (*ctypes.ResultBroadcastTx, error) {
+ 	resCh := make(chan *abci.Response, 1)
+-	err := env.Mempool.CheckTx(tx, func(res *abci.Response) {
++	err := GetEnvironment().Mempool.CheckTx(tx, func(res *abci.Response) {
+ 		select {
+ 		case <-ctx.Context().Done():
+ 		case resCh <- res:
+@@ -59,10 +61,12 @@ func BroadcastTxSync(ctx *rpctypes.Context, tx types.Tx) (*ctypes.ResultBroadcas
+ 	}
+ }
+ 
++// DEPRECATED: Use BroadcastTxSync or BroadcastTxAsync instead.
+ // BroadcastTxCommit returns with the responses from CheckTx and DeliverTx.
+ // More: https://docs.cometbft.com/v0.34/rpc/#/Tx/broadcast_tx_commit
+ func BroadcastTxCommit(ctx *rpctypes.Context, tx types.Tx) (*ctypes.ResultBroadcastTxCommit, error) {
+ 	subscriber := ctx.RemoteAddr()
++	env := GetEnvironment()
+ 
+ 	if env.EventBus.NumClients() >= env.Config.MaxSubscriptionClients {
+ 		return nil, fmt.Errorf("max_subscription_clients %d reached", env.Config.MaxSubscriptionClients)
+@@ -136,7 +140,7 @@ func BroadcastTxCommit(ctx *rpctypes.Context, tx types.Tx) (*ctypes.ResultBroadc
+ 				Hash:      tx.Hash(),
+ 			}, err
+ 		case <-time.After(env.Config.TimeoutBroadcastTxCommit):
+-			err = errors.New("timed out waiting for tx to be included in a block")
++			err = ErrTimedOutWaitingForTx
+ 			env.Logger.Error("Error on broadcastTxCommit", "err", err)
+ 			return &ctypes.ResultBroadcastTxCommit{
+ 				CheckTx:   *checkTxRes,
+@@ -153,6 +157,7 @@ func BroadcastTxCommit(ctx *rpctypes.Context, tx types.Tx) (*ctypes.ResultBroadc
+ func UnconfirmedTxs(ctx *rpctypes.Context, limitPtr *int) (*ctypes.ResultUnconfirmedTxs, error) {
+ 	// reuse per_page validator
+ 	limit := validatePerPage(limitPtr)
++	env := GetEnvironment()
+ 
+ 	txs := env.Mempool.ReapMaxTxs(limit)
+ 	return &ctypes.ResultUnconfirmedTxs{
+@@ -165,6 +170,7 @@ func UnconfirmedTxs(ctx *rpctypes.Context, limitPtr *int) (*ctypes.ResultUnconfi
+ // NumUnconfirmedTxs gets number of unconfirmed transactions.
+ // More: https://docs.cometbft.com/v0.34/rpc/#/Info/num_unconfirmed_txs
+ func NumUnconfirmedTxs(ctx *rpctypes.Context) (*ctypes.ResultUnconfirmedTxs, error) {
++	env := GetEnvironment()
+ 	return &ctypes.ResultUnconfirmedTxs{
+ 		Count:      env.Mempool.Size(),
+ 		Total:      env.Mempool.Size(),
+@@ -175,7 +181,7 @@ func NumUnconfirmedTxs(ctx *rpctypes.Context) (*ctypes.ResultUnconfirmedTxs, err
+ // be added to the mempool either.
+ // More: https://docs.cometbft.com/v0.34/rpc/#/Tx/check_tx
+ func CheckTx(ctx *rpctypes.Context, tx types.Tx) (*ctypes.ResultCheckTx, error) {
+-	res, err := env.ProxyAppMempool.CheckTxSync(abci.RequestCheckTx{Tx: tx})
++	res, err := GetEnvironment().ProxyAppMempool.CheckTxSync(abci.RequestCheckTx{Tx: tx})
+ 	if err != nil {
+ 		return nil, err
+ 	}

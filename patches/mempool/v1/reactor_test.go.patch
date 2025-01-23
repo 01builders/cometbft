@@ -1,0 +1,76 @@
+diff --git a/mempool/v1/reactor_test.go b/mempool/v1/reactor_test.go
+index 74f9f469f..31cb9672e 100644
+--- a/mempool/v1/reactor_test.go
++++ b/mempool/v1/reactor_test.go
+@@ -14,6 +14,7 @@ import (
+ 
+ 	"github.com/tendermint/tendermint/abci/example/kvstore"
+ 	"github.com/tendermint/tendermint/p2p/mock"
++	"github.com/tendermint/tendermint/pkg/trace"
+ 
+ 	cfg "github.com/tendermint/tendermint/config"
+ 
+@@ -95,6 +96,36 @@ func TestMempoolVectors(t *testing.T) {
+ 	}
+ }
+ 
++func TestReactorEventuallyRemovesExpiredTransaction(t *testing.T) {
++	config := cfg.TestConfig()
++	config.Mempool.TTLDuration = 100 * time.Millisecond
++	const N = 1
++	reactor := makeAndConnectReactors(config, N)[0]
++
++	tx := types.Tx([]byte("test"))
++	key := tx.Key()
++	txMsg := &memproto.Message{
++		Sum: &memproto.Message_Txs{Txs: &memproto.Txs{Txs: [][]byte{tx}}},
++	}
++	txMsgBytes, err := txMsg.Marshal()
++	require.NoError(t, err)
++
++	peer := mock.NewPeer(nil)
++	reactor.InitPeer(peer)
++	reactor.Receive(mempool.MempoolChannel, peer, txMsgBytes)
++	reactor.mempool.Lock()
++	_, has := reactor.mempool.txByKey[key]
++	reactor.mempool.Unlock()
++	require.True(t, has)
++
++	// wait for the transaction to expire
++	time.Sleep(reactor.mempool.config.TTLDuration * 2)
++	reactor.mempool.Lock()
++	_, has = reactor.mempool.txByKey[key]
++	reactor.mempool.Unlock()
++	require.False(t, has)
++}
++
+ func TestLegacyReactorReceiveBasic(t *testing.T) {
+ 	config := cfg.TestConfig()
+ 	// if there were more than two reactors, the order of transactions could not be
+@@ -130,10 +161,10 @@ func makeAndConnectReactors(config *cfg.Config, n int) []*Reactor {
+ 	for i := 0; i < n; i++ {
+ 		app := kvstore.NewApplication()
+ 		cc := proxy.NewLocalClientCreator(app)
+-		mempool, cleanup := newMempoolWithApp(cc)
++		mempool, cleanup := newMempoolWithAppAndConfig(cc, config)
+ 		defer cleanup()
+ 
+-		reactors[i] = NewReactor(config.Mempool, mempool) // so we dont start the consensus states
++		reactors[i] = NewReactor(config.Mempool, mempool, trace.NoOpTracer()) // so we dont start the consensus states
+ 		reactors[i].SetLogger(logger.With("validator", i))
+ 	}
+ 
+@@ -158,13 +189,6 @@ func mempoolLogger() log.Logger {
+ 	})
+ }
+ 
+-func newMempoolWithApp(cc proxy.ClientCreator) (*TxMempool, func()) {
+-	conf := cfg.ResetTestRoot("mempool_test")
+-
+-	mp, cu := newMempoolWithAppAndConfig(cc, conf)
+-	return mp, cu
+-}
+-
+ func newMempoolWithAppAndConfig(cc proxy.ClientCreator, conf *cfg.Config) (*TxMempool, func()) {
+ 	appConnMem, _ := cc.NewABCIClient()
+ 	appConnMem.SetLogger(log.TestingLogger().With("module", "abci-client", "connection", "mempool"))
