@@ -1,6 +1,8 @@
 module github.com/cometbft/cometbft
 
-go 1.22.2
+go 1.23
+
+toolchain go1.23.4
 
 require (
 	github.com/BurntSushi/toml v1.3.2
@@ -64,6 +66,7 @@ require (
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/celestiaorg/nmt v0.23.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/cockroachdb/errors v1.11.1 // indirect

@@ -82,13 +82,13 @@ func (b *Block) ValidateBasic() error {
 	}
 
 	// NOTE: b.Data.Txs may be nil, but b.Data.Hash() still works fine.
-	if !bytes.Equal(b.DataHash, b.Data.Hash()) {
-		return fmt.Errorf(
-			"wrong Header.DataHash. Expected %v, got %v",
-			b.Data.Hash(),
-			b.DataHash,
-		)
-	}
+	// if !bytes.Equal(b.DataHash, b.Data.Hash()) {
+	// 	return fmt.Errorf(
+	// 		"wrong Header.DataHash. Expected %v, got %v",
+	// 		b.Data.Hash(),
+	// 		b.DataHash,
+	// 	)
+	// }
 
 	// NOTE: b.Evidence.Evidence may be nil, but we're just looping.
 	for i, ev := range b.Evidence.Evidence {
@@ -901,6 +901,10 @@ func (commit *Commit) Size() int {
 // ValidateBasic performs basic validation that doesn't involve state data.
 // Does not actually check the cryptographic signatures.
 func (commit *Commit) ValidateBasic() error {
+	if commit == nil {
+		return errors.New("nil commit")
+	}
+
 	if commit.Height < 0 {
 		return errors.New("negative Height")
 	}
@@ -1314,6 +1318,12 @@ type Data struct {
 	// This means that block.AppHash does not include these txs.
 	Txs Txs `json:"txs"`
 
+	// SquareSize is the size of the square after splitting all the block data
+	// into shares. The erasure data is discarded after generation, and keeping this
+	// value avoids unnecessarily regenerating all of the shares when returning
+	// proofs that some element was included in the block
+	SquareSize uint64 `json:"square_size"`
+
 	// Volatile
 	hash cmtbytes.HexBytes
 }
@@ -1360,6 +1370,8 @@ func (data *Data) ToProto() cmtproto.Data {
 		}
 		tp.Txs = txBzs
 	}
+	tp.SquareSize = data.SquareSize
+	tp.Hash = data.hash
 
 	return *tp
 }
@@ -1382,7 +1394,35 @@ func DataFromProto(dp *cmtproto.Data) (Data, error) {
 		data.Txs = Txs{}
 	}
 
+	data.SquareSize = dp.SquareSize
+	data.hash = dp.Hash
+
 	return *data, nil
+}
+
+// -----------------------------------------------------------------------------
+
+type Blob struct {
+	// NamespaceVersion is the version of the namespace. Used in conjunction
+	// with NamespaceID to determine the namespace of this blob.
+	NamespaceVersion uint8
+
+	// NamespaceID defines the namespace ID of this blob. Used in conjunction
+	// with NamespaceVersion to determine the namespace of this blob.
+	NamespaceID []byte
+
+	// Data is the actual data of the blob.
+	// (e.g. a block of a virtual sidechain).
+	Data []byte
+
+	// ShareVersion is the version of the share format that this blob should use
+	// when encoded into shares.
+	ShareVersion uint8
+}
+
+// Namespace returns the namespace of this blob encoded as a byte slice.
+func (b Blob) Namespace() []byte {
+	return append([]byte{b.NamespaceVersion}, b.NamespaceID...)
 }
 
 // -----------------------------------------------------------------------------

@@ -78,6 +78,30 @@ func TestValidatorSetBasic(t *testing.T) {
 	assert.Equal(t, proposerPriority, val.ProposerPriority)
 }
 
+func TestValidatorSet_ProposerPriorityHash(t *testing.T) {
+	vset := NewValidatorSet(nil)
+	assert.Equal(t, []byte(nil), vset.ProposerPriorityHash())
+
+	vset = randValidatorSet(3)
+	assert.NotNil(t, vset.ProposerPriorityHash())
+
+	// Marshalling and unmarshalling do not affect ProposerPriorityHash
+	bz, err := vset.ToProto()
+	assert.NoError(t, err)
+	vsetProto, err := ValidatorSetFromProto(bz)
+	assert.NoError(t, err)
+	assert.Equal(t, vset.ProposerPriorityHash(), vsetProto.ProposerPriorityHash())
+
+	// Copy does not affect ProposerPriorityHash
+	vsetCopy := vset.Copy()
+	assert.Equal(t, vset.ProposerPriorityHash(), vsetCopy.ProposerPriorityHash())
+
+	// Incrementing priorities changes ProposerPriorityHash() but not Hash()
+	vset.IncrementProposerPriority(1)
+	assert.Equal(t, vset.Hash(), vsetCopy.Hash())
+	assert.NotEqual(t, vset.ProposerPriorityHash(), vsetCopy.ProposerPriorityHash())
+}
+
 func TestValidatorSetValidateBasic(t *testing.T) {
 	val, _ := RandValidator(false, 1)
 	badVal := &Validator{}

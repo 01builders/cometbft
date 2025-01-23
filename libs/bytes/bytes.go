@@ -63,3 +63,7 @@ func (bz HexBytes) Format(s fmt.State, verb rune) {
 		s.Write([]byte(fmt.Sprintf("%X", []byte(bz))))
 	}
 }
+
+func FromBytes(b []byte) []HexBytes {
+	return []HexBytes{b}
+}

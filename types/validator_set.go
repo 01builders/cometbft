@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -11,6 +12,7 @@ import (
 
 	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	"github.com/cometbft/cometbft/crypto/merkle"
+	"github.com/cometbft/cometbft/crypto/tmhash"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
 )
 
@@ -29,6 +31,9 @@ const (
 	// priorities.
 	PriorityWindowSizeFactor = 2
 )
+
+// ErrProposerNotInVals is returned if the proposer is not in the validator set.
+var ErrProposerNotInVals = errors.New("proposer not in validator set")
 
 // ErrTotalVotingPowerOverflow is returned if the total voting power of the
 // resulting validator set exceeds MaxTotalVotingPower.
@@ -92,6 +97,12 @@ func (vals *ValidatorSet) ValidateBasic() error {
 
 	if err := vals.Proposer.ValidateBasic(); err != nil {
 		return fmt.Errorf("proposer failed validate basic, error: %w", err)
+	}
+
+	for _, val := range vals.Validators {
+		if !bytes.Equal(val.Address, vals.Proposer.Address) {
+			return ErrProposerNotInVals
+		}
 	}
 
 	return nil
@@ -191,6 +202,23 @@ func (vals *ValidatorSet) computeAvgProposerPriority() int64 {
 
 	// This should never happen: each val.ProposerPriority is in bounds of int64.
 	panic(fmt.Sprintf("Cannot represent avg ProposerPriority as an int64 %v", avg))
+}
+
+// ProposerPriorityHash returns the tmhash of the proposer priorities.
+// Validator set must be sorted to get the same hash.
+// If the validator set is empty, nil is returned.
+func (vals *ValidatorSet) ProposerPriorityHash() []byte {
+	if len(vals.Validators) == 0 {
+		return nil
+	}
+
+	buf := make([]byte, binary.MaxVarintLen64*len(vals.Validators))
+	total := 0
+	for _, val := range vals.Validators {
+		n := binary.PutVarint(buf, val.ProposerPriority)
+		total += n
+	}
+	return tmhash.Sum(buf[:total])
 }
 
 // computeMaxMinPriorityDiff computes the difference between the max and min
