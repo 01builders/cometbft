@@ -1,8 +1,0 @@
-diff --git a/pkg/trace/doc.go b/pkg/trace/doc.go
-new file mode 100644
-index 000000000..27cf777c2
---- /dev/null
-+++ b/pkg/trace/doc.go
-@@ -0,0 +1,2 @@
-+/**/
-+package trace
