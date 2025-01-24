@@ -9,6 +9,8 @@ import (
 	"github.com/cosmos/gogoproto/proto"
 
 	"github.com/cometbft/cometbft/internal/cmap"
+	"github.com/cometbft/cometbft/internal/trace"
+	"github.com/cometbft/cometbft/internal/trace/schema"
 	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cometbft/cometbft/libs/service"
 	cmtconn "github.com/cometbft/cometbft/p2p/conn"
@@ -45,6 +47,8 @@ type Peer interface {
 
 	SetRemovalFailed()
 	GetRemovalFailed() bool
+
+	HasIPChanged() bool // has the peer's IP changed
 }
 
 // ----------------------------------------------------------
@@ -120,14 +124,21 @@ type peer struct {
 	// User data
 	Data *cmap.CMap
 
-	metrics *Metrics
-	mlc     *metricsLabelCache
+	metrics     *Metrics
+	mlc         *metricsLabelCache
+	traceClient trace.Tracer
 
 	// When removal of a peer fails, we set this flag
 	removalAttemptFailed bool
 }
 
 type PeerOption func(*peer)
+
+func WithPeerTracer(t trace.Tracer) PeerOption {
+	return func(p *peer) {
+		p.traceClient = t
+	}
+}
 
 func newPeer(
 	pc peerConn,
@@ -173,6 +184,18 @@ func (p *peer) String() string {
 	}
 
 	return fmt.Sprintf("Peer{%v %v in}", p.mconn, p.ID())
+}
+
+// HasIPChanged returns true and the new IP if the peer's IP has changed.
+func (p *peer) HasIPChanged() bool {
+	oldIP := p.ip
+	if oldIP == nil {
+		return false
+	}
+	// Reset the IP so we can get the new one
+	p.ip = nil
+	newIP := p.RemoteIP()
+	return !oldIP.Equal(newIP)
 }
 
 // ---------------------------------------------------
@@ -254,7 +277,16 @@ func (p *peer) Status() cmtconn.ConnectionStatus {
 //
 // thread safe.
 func (p *peer) Send(e Envelope) bool {
-	return p.send(e.ChannelID, e.Message, p.mconn.Send)
+	res := p.send(e.ChannelID, e.Message, p.mconn.Send)
+	if res {
+		labels := []string{
+			"message_type", p.mlc.ValueToMetricLabel(e.Message),
+			"chID", fmt.Sprintf("%#x", e.ChannelID),
+			"peer_id", string(p.ID()),
+		}
+		p.metrics.MessageSendBytesTotal.With(labels...).Add(float64(proto.Size(e.Message)))
+	}
+	return res
 }
 
 // TrySend msg bytes to the channel identified by chID byte. Immediately returns
@@ -262,7 +294,16 @@ func (p *peer) Send(e Envelope) bool {
 //
 // thread safe.
 func (p *peer) TrySend(e Envelope) bool {
-	return p.send(e.ChannelID, e.Message, p.mconn.TrySend)
+	res := p.send(e.ChannelID, e.Message, p.mconn.TrySend)
+	if res {
+		labels := []string{
+			"message_type", p.mlc.ValueToMetricLabel(e.Message),
+			"chID", fmt.Sprintf("%#x", e.ChannelID),
+			"peer_id", string(p.ID()),
+		}
+		p.metrics.MessageSendBytesTotal.With(labels...).Add(float64(proto.Size(e.Message)))
+	}
+	return res
 }
 
 func (p *peer) send(chID byte, msg proto.Message, sendFunc func(byte, []byte) bool) bool {
@@ -373,6 +414,7 @@ func (p *peer) metricsReporter() {
 	metricsTicker := time.NewTicker(metricsTickerDuration)
 	defer metricsTicker.Stop()
 
+	queues := make(map[byte]int, len(p.mconn.Status().Channels))
 	for {
 		select {
 		case <-metricsTicker.C:
@@ -380,9 +422,11 @@ func (p *peer) metricsReporter() {
 			var sendQueueSize float64
 			for _, chStatus := range status.Channels {
 				sendQueueSize += float64(chStatus.SendQueueSize)
+				queues[chStatus.ID] = chStatus.SendQueueSize
 			}
 
 			p.metrics.PeerPendingSendBytes.With("peer_id", string(p.ID())).Set(sendQueueSize)
+			schema.WritePendingBytes(p.traceClient, string(p.ID()), queues)
 		case <-p.Quit():
 			return
 		}
