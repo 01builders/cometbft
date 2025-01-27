@@ -7,6 +7,7 @@ import (
 	abcitypes "github.com/cometbft/cometbft/abci/types"
 	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	"github.com/cometbft/cometbft/crypto"
+	"github.com/cometbft/cometbft/crypto/merkle"
 	"github.com/cometbft/cometbft/libs/bytes"
 	"github.com/cometbft/cometbft/p2p"
 	"github.com/cometbft/cometbft/types"
@@ -39,6 +40,14 @@ type ResultBlock struct {
 	Block   *types.Block  `json:"block"`
 }
 
+// Single block with all data for validation
+type ResultSignedBlock struct {
+	Header       types.Header       `json:"header"`
+	Commit       types.Commit       `json:"commit"`
+	Data         types.Data         `json:"data"`
+	ValidatorSet types.ValidatorSet `json:"validator_set"`
+}
+
 // ResultHeader represents the response for a Header RPC Client query.
 type ResultHeader struct {
 	Header *types.Header `json:"header"`
@@ -58,6 +67,16 @@ type ResultBlockResults struct {
 	ValidatorUpdates      []abcitypes.ValidatorUpdate `json:"validator_updates"`
 	ConsensusParamUpdates *cmtproto.ConsensusParams   `json:"consensus_param_updates"`
 	AppHash               []byte                      `json:"app_hash"`
+}
+
+// ResultTxStatus represents the status of a transaction during its life cycle.
+// It contains info to locate a tx in a committed block as well as its execution code, log if it fails and status.
+type ResultTxStatus struct {
+	Height        int64  `json:"height"`
+	Index         uint32 `json:"index"`
+	ExecutionCode uint32 `json:"execution_code"`
+	Error         string `json:"error"`
+	Status        string `json:"status"`
 }
 
 // NewResultCommit is a helper to initialize the ResultCommit with
@@ -201,7 +220,12 @@ type ResultTx struct {
 	Index    uint32                 `json:"index"`
 	TxResult abcitypes.ExecTxResult `json:"tx_result"`
 	Tx       types.Tx               `json:"tx"`
-	Proof    types.TxProof          `json:"proof,omitempty"`
+	Proof    types.ShareProof       `json:"proof,omitempty"`
+}
+
+// ResultShareProof is an API response that contains a ShareProof.
+type ResultShareProof struct {
+	ShareProof types.ShareProof `json:"share_proof"`
 }
 
 // Result of searching for txs.
@@ -253,4 +277,14 @@ type ResultEvent struct {
 	Query  string              `json:"query"`
 	Data   types.TMEventData   `json:"data"`
 	Events map[string][]string `json:"events"`
+}
+
+// ResultShareProof is an API response that contains a ShareProof.
+type ResultDataCommitment struct {
+	DataCommitment bytes.HexBytes `json:"data_commitment"`
+}
+
+// ResultDataRootInclusionProof is an API response that contains a DataRootInclusionProof.
+type ResultDataRootInclusionProof struct {
+	Proof merkle.Proof `json:"proof"`
 }
