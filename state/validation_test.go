@@ -336,7 +336,7 @@ func TestValidateBlockEvidence(t *testing.T) {
 				evidence = append(evidence, newEv)
 				currentBytes += int64(len(newEv.Bytes()))
 			}
-			block := state.MakeBlock(height, test.MakeNTxs(height, 10), lastCommit, evidence, proposerAddr)
+			block := state.MakeBlock(height, types.Data{Txs: test.MakeNTxs(height, 10)}, lastCommit, evidence, proposerAddr)
 
 			err := blockExec.ValidateBlock(state, block)
 			if assert.Error(t, err) { //nolint:testifylint // require.Error doesn't work with the conditional here

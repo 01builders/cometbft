@@ -21,6 +21,8 @@ import (
 	cmtevents "github.com/cometbft/cometbft/internal/events"
 	"github.com/cometbft/cometbft/internal/fail"
 	cmtos "github.com/cometbft/cometbft/internal/os"
+	"github.com/cometbft/cometbft/internal/trace"
+	"github.com/cometbft/cometbft/internal/trace/schema"
 	cmtjson "github.com/cometbft/cometbft/libs/json"
 	"github.com/cometbft/cometbft/libs/log"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
@@ -137,6 +139,9 @@ type State struct {
 
 	// offline state sync height indicating to which height the node synced offline
 	offlineStateSyncHeight int64
+
+	// traceClient is used to trace the state machine.
+	traceClient trace.Tracer
 }
 
 // StateOption sets an optional parameter on the State.
@@ -167,6 +172,7 @@ func NewState(
 		evpool:           evpool,
 		evsw:             cmtevents.NewEventSwitch(),
 		metrics:          NopMetrics(),
+		traceClient:      trace.NoOpTracer(),
 	}
 	for _, option := range options {
 		option(cs)
@@ -214,6 +220,11 @@ func (cs *State) SetEventBus(b *types.EventBus) {
 // StateMetrics sets the metrics.
 func StateMetrics(metrics *Metrics) StateOption {
 	return func(cs *State) { cs.metrics = metrics }
+}
+
+// SetTraceClient sets the remote event collector.
+func SetTraceClient(ec trace.Tracer) StateOption {
+	return func(cs *State) { cs.traceClient = ec }
 }
 
 // OfflineStateSyncHeight indicates the height at which the node
@@ -315,6 +326,8 @@ func (cs *State) OnStart() error {
 			return err
 		}
 	}
+
+	cs.metrics.Height.Set(float64(cs.Height))
 
 	// we need the timeoutRoutine for replay so
 	// we don't block on the tick chan.
@@ -537,6 +550,7 @@ func (cs *State) updateRoundStep(round int32, step cstypes.RoundStepType) {
 		}
 		if cs.Step != step {
 			cs.metrics.MarkStep(cs.Step)
+			schema.WriteRoundState(cs.traceClient, cs.Height, round, uint8(step))
 		}
 	}
 	cs.Round = round
@@ -1855,10 +1869,12 @@ func (cs *State) finalizeCommit(height int64) {
 	fail.Fail() // XXX
 
 	// Save to blockStore.
+	var seenCommit *types.Commit
 	if cs.blockStore.Height() < block.Height {
 		// NOTE: the seenCommit is local justification to commit this block,
 		// but may differ from the LastCommit included in the next block
 		seenExtendedCommit := cs.Votes.Precommits(cs.CommitRound).MakeExtendedCommit(cs.state.ConsensusParams.Feature)
+		seenCommit = seenExtendedCommit.ToCommit()
 		if cs.state.ConsensusParams.Feature.VoteExtensionsEnabled(block.Height) {
 			cs.blockStore.SaveBlockWithExtendedCommit(block, blockParts, seenExtendedCommit)
 		} else {
@@ -1897,6 +1913,8 @@ func (cs *State) finalizeCommit(height int64) {
 	// Create a copy of the state for staging and an event cache for txs.
 	stateCopy := cs.state.Copy()
 
+	schema.WriteABCI(cs.traceClient, schema.CommitStart, height, 0)
+
 	// Execute and commit the block, update and save the state, and update the mempool.
 	// We use apply verified block here because we have verified the block in this function already.
 	// NOTE The block.AppHash won't reflect these txs until the next block.
@@ -1907,10 +1925,13 @@ func (cs *State) finalizeCommit(height int64) {
 			PartSetHeader: blockParts.Header(),
 		},
 		block,
+		seenCommit,
 	)
 	if err != nil {
 		panic(fmt.Sprintf("failed to apply block; error %v", err))
 	}
+
+	schema.WriteABCI(cs.traceClient, schema.CommitEnd, height, 0)
 
 	fail.Fail() // XXX
 

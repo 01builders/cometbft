@@ -1,6 +1,7 @@
 package state
 
 import (
+	cmtstore "github.com/cometbft/cometbft/api/cometbft/store/v1"
 	"github.com/cometbft/cometbft/types"
 )
 
@@ -26,6 +27,7 @@ type BlockStore interface {
 
 	SaveBlock(block *types.Block, blockParts *types.PartSet, seenCommit *types.Commit)
 	SaveBlockWithExtendedCommit(block *types.Block, blockParts *types.PartSet, seenCommit *types.ExtendedCommit)
+	SaveTxInfo(block *types.Block, txResponseCodes []uint32, logs []string) error
 
 	PruneBlocks(height int64, state State) (uint64, int64, error)
 
@@ -36,6 +38,8 @@ type BlockStore interface {
 	LoadBlockCommit(height int64) *types.Commit
 	LoadSeenCommit(height int64) *types.Commit
 	LoadBlockExtendedCommit(height int64) *types.ExtendedCommit
+
+	LoadTxInfo(hash []byte) *cmtstore.TxInfo
 
 	DeleteLatestBlock() error
 

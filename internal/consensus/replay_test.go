@@ -21,6 +21,7 @@ import (
 	"github.com/cometbft/cometbft/abci/example/kvstore"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/abci/types/mocks"
+	cmtstore "github.com/cometbft/cometbft/api/cometbft/store/v1"
 	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	cfg "github.com/cometbft/cometbft/config"
 	cmtrand "github.com/cometbft/cometbft/internal/rand"
@@ -739,7 +740,7 @@ func applyBlock(t *testing.T, stateStore sm.Store, mempool mempool.Mempool, evpo
 	bps, err := blk.MakePartSet(testPartSize)
 	require.NoError(t, err)
 	blkID := types.BlockID{Hash: blk.Hash(), PartSetHeader: bps.Header()}
-	newState, err := blockExec.ApplyBlock(st, blkID, blk)
+	newState, err := blockExec.ApplyBlock(st, blkID, blk, nil)
 	require.NoError(t, err)
 	return newState
 }
@@ -870,7 +871,7 @@ func makeBlocks(n int, state sm.State, privVals []types.PrivValidator) ([]*types
 		if err != nil {
 			return nil, err
 		}
-		block := state.MakeBlock(height, test.MakeNTxs(height, 10), lastCommit, nil, state.LastValidators.Proposer.Address)
+		block := state.MakeBlock(height, types.MakeData(test.MakeNTxs(height, 10)), lastCommit, nil, state.LastValidators.Proposer.Address)
 		blocks[i] = block
 		state.LastBlockID = blockID
 		state.LastBlockHeight = height
@@ -1158,6 +1159,10 @@ func (bs *mockBlockStore) Height() int64                  { return int64(len(bs.
 func (bs *mockBlockStore) Base() int64                    { return bs.base }
 func (bs *mockBlockStore) Size() int64                    { return bs.Height() - bs.Base() + 1 }
 func (bs *mockBlockStore) LoadBaseMeta() *types.BlockMeta { return bs.LoadBlockMeta(bs.base) }
+func (bs *mockBlockStore) SaveTxInfo(block *types.Block, txResponseCodes []uint32, logs []string) error {
+	return nil
+}
+func (bs *mockBlockStore) LoadTxInfo(hash []byte) *cmtstore.TxInfo { return &cmtstore.TxInfo{} }
 func (bs *mockBlockStore) LoadBlock(height int64) (*types.Block, *types.BlockMeta) {
 	return bs.chain[height-1], bs.LoadBlockMeta(height)
 }

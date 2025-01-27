@@ -60,6 +60,13 @@ func BlockExecutorWithMetrics(metrics *Metrics) BlockExecutorOption {
 	}
 }
 
+// WithBlockStore optionally stores txInfo
+func WithBlockStore(blockStore BlockStore) BlockExecutorOption {
+	return func(blockExec *BlockExecutor) {
+		blockExec.blockStore = blockStore
+	}
+}
+
 // NewBlockExecutor returns a new BlockExecutor with a NopEventBus.
 // Call SetEventBus to provide one.
 func NewBlockExecutor(
@@ -131,7 +138,7 @@ func (blockExec *BlockExecutor) CreateProposalBlock(
 
 	txs := blockExec.mempool.ReapMaxBytesMaxGas(maxReapBytes, maxGas)
 	commit := lastExtCommit.ToCommit()
-	block := state.MakeBlock(height, txs, commit, evidence, proposerAddr)
+	block := state.MakeBlock(height, types.Data{Txs: txs}, commit, evidence, proposerAddr)
 	rpp, err := blockExec.proxyApp.PrepareProposal(
 		ctx,
 		&abci.PrepareProposalRequest{
@@ -157,12 +164,25 @@ func (blockExec *BlockExecutor) CreateProposalBlock(
 		return nil, err
 	}
 
+	rawNewData := rpp.GetTxs()
+
+	rejectedTxs := len(rawNewData) - len(txs)
+	if rejectedTxs > 0 {
+		blockExec.metrics.RejectedTransactions.Add(float64(rejectedTxs))
+	}
+
 	txl := types.ToTxs(rpp.Txs)
 	if err := txl.Validate(maxDataBytes); err != nil {
 		return nil, err
 	}
 
-	return state.MakeBlock(height, txl, commit, evidence, proposerAddr), nil
+	data := types.Data{
+		SquareSize:   rpp.SquareSize,
+		DataRootHash: rpp.DataRootHash,
+		Txs:          txl,
+	}
+
+	return state.MakeBlock(height, data, commit, evidence, proposerAddr), nil
 }
 
 func (blockExec *BlockExecutor) ProcessProposal(
@@ -174,6 +194,8 @@ func (blockExec *BlockExecutor) ProcessProposal(
 		Height:             block.Header.Height,
 		Time:               block.Header.Time,
 		Txs:                block.Data.Txs.ToSliceOfBytes(),
+		SquareSize:         block.Data.SquareSize,
+		DataRootHash:       block.Data.DataRootHash,
 		ProposedLastCommit: buildLastCommitInfoFromStore(block, blockExec.store, state.InitialHeight),
 		Misbehavior:        block.Evidence.Evidence.ToABCI(),
 		ProposerAddress:    block.ProposerAddress,
@@ -203,9 +225,9 @@ func (blockExec *BlockExecutor) ValidateBlock(state State, block *types.Block) e
 
 // ApplyVerifiedBlock does the same as `ApplyBlock`, but skips verification.
 func (blockExec *BlockExecutor) ApplyVerifiedBlock(
-	state State, blockID types.BlockID, block *types.Block,
+	state State, blockID types.BlockID, block *types.Block, commit *types.Commit,
 ) (State, error) {
-	return blockExec.applyBlock(state, blockID, block)
+	return blockExec.applyBlock(state, blockID, block, commit)
 }
 
 // ApplyBlock validates the block against the state, executes it against the app,
@@ -215,16 +237,16 @@ func (blockExec *BlockExecutor) ApplyVerifiedBlock(
 // from outside this package to process and commit an entire block.
 // It takes a blockID to avoid recomputing the parts hash.
 func (blockExec *BlockExecutor) ApplyBlock(
-	state State, blockID types.BlockID, block *types.Block,
+	state State, blockID types.BlockID, block *types.Block, commit *types.Commit,
 ) (State, error) {
 	if err := validateBlock(state, block); err != nil {
 		return state, ErrInvalidBlock(err)
 	}
 
-	return blockExec.applyBlock(state, blockID, block)
+	return blockExec.applyBlock(state, blockID, block, commit)
 }
 
-func (blockExec *BlockExecutor) applyBlock(state State, blockID types.BlockID, block *types.Block) (State, error) {
+func (blockExec *BlockExecutor) applyBlock(state State, blockID types.BlockID, block *types.Block, commit *types.Commit) (State, error) {
 	startTime := cmttime.Now().UnixNano()
 	abciResponse, err := blockExec.proxyApp.FinalizeBlock(context.TODO(), &abci.FinalizeBlockRequest{
 		Hash:               block.Hash(),
@@ -257,6 +279,17 @@ func (blockExec *BlockExecutor) applyBlock(state State, blockID types.BlockID, b
 	}
 
 	blockExec.logger.Info("executed block", "height", block.Height, "app_hash", fmt.Sprintf("%X", abciResponse.AppHash))
+
+	// Save indexing info of the transaction.
+	// This needs to be done prior to saving state
+	// for correct crash recovery
+	if blockExec.blockStore != nil {
+		respCodes := getResponseCodes(abciResponse.TxResults)
+		logs := getLogs(abciResponse.TxResults)
+		if err := blockExec.blockStore.SaveTxInfo(block, respCodes, logs); err != nil {
+			return state, err
+		}
+	}
 
 	fail.Fail() // XXX
 
@@ -320,7 +353,7 @@ func (blockExec *BlockExecutor) applyBlock(state State, blockID types.BlockID, b
 
 	// Events are fired after everything else.
 	// NOTE: if we crash between Commit and Save, events won't be fired during replay
-	fireEvents(blockExec.logger, blockExec.eventBus, block, blockID, abciResponse, validatorUpdates)
+	fireEvents(blockExec.logger, blockExec.eventBus, block, blockID, abciResponse, validatorUpdates, state.Validators, commit)
 
 	return state, nil
 }
@@ -665,6 +698,8 @@ func fireEvents(
 	blockID types.BlockID,
 	abciResponse *abci.FinalizeBlockResponse,
 	validatorUpdates []*types.Validator,
+	currentValidatorSet *types.ValidatorSet,
+	seenCommit *types.Commit,
 ) {
 	if err := eventBus.PublishEventNewBlock(types.EventDataNewBlock{
 		Block:               block,
@@ -672,6 +707,18 @@ func fireEvents(
 		ResultFinalizeBlock: *abciResponse,
 	}); err != nil {
 		logger.Error("failed publishing new block", "err", err)
+	}
+
+	if seenCommit != nil {
+		err := eventBus.PublishEventNewSignedBlock(types.EventDataSignedBlock{
+			Header:       block.Header,
+			Commit:       *seenCommit,
+			ValidatorSet: *currentValidatorSet,
+			Data:         block.Data,
+		})
+		if err != nil {
+			logger.Error("failed publishing new signed block", "err", err)
+		}
 	}
 
 	if err := eventBus.PublishEventNewBlockHeader(types.EventDataNewBlockHeader{
@@ -700,6 +747,10 @@ func fireEvents(
 	}
 
 	for i, tx := range block.Data.Txs {
+		blobTx, isBlobTx := types.UnmarshalBlobTx(tx)
+		if isBlobTx {
+			tx = blobTx.Tx
+		}
 		if err := eventBus.PublishEventTx(types.EventDataTx{TxResult: abci.TxResult{
 			Height: block.Height,
 			Index:  uint32(i),
@@ -763,4 +814,22 @@ func ExecCommitBlock(
 
 	// ResponseCommit has no error or log
 	return resp.AppHash, nil
+}
+
+// getResponseCodes gets response codes from a list of ResponseDeliverTx.
+func getResponseCodes(responses []*abci.ExecTxResult) []uint32 {
+	responseCodes := make([]uint32, len(responses))
+	for i, response := range responses {
+		responseCodes[i] = response.Code
+	}
+	return responseCodes
+}
+
+// getLogs gets logs from a list of ResponseDeliverTx.
+func getLogs(responses []*abci.ExecTxResult) []string {
+	logs := make([]string, len(responses))
+	for i, response := range responses {
+		logs[i] = response.Log
+	}
+	return logs
 }

@@ -1,9 +1,0 @@
-diff --git a/mempool/ids.go b/mempool/ids.go
-deleted file mode 100644
-index d64a07bda..000000000
---- a/mempool/ids.go
-+++ /dev/null
-@@ -1,3 +0,0 @@
--package mempool
--
--// These functions were moved into v0/reactor.go and v1/reactor.go

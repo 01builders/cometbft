@@ -11,6 +11,8 @@ import (
 	brs "github.com/cometbft/cometbft/api/cometbft/services/block_results/v1"
 	pbversionsvc "github.com/cometbft/cometbft/api/cometbft/services/version/v1"
 	"github.com/cometbft/cometbft/libs/log"
+	"github.com/cometbft/cometbft/rpc/core"
+	"github.com/cometbft/cometbft/rpc/grpc/server/services/blockapi"
 	"github.com/cometbft/cometbft/rpc/grpc/server/services/blockresultservice"
 	"github.com/cometbft/cometbft/rpc/grpc/server/services/blockservice"
 	"github.com/cometbft/cometbft/rpc/grpc/server/services/versionservice"
@@ -28,6 +30,7 @@ type serverBuilder struct {
 	versionService      pbversionsvc.VersionServiceServer
 	blockService        pbblocksvc.BlockServiceServer
 	blockResultsService brs.BlockResultsServiceServer
+	blockAPI            *blockapi.BlockAPI
 	logger              log.Logger
 	grpcOpts            []grpc.ServerOption
 }
@@ -67,6 +70,13 @@ func WithVersionService() Option {
 func WithBlockService(store *store.BlockStore, eventBus *types.EventBus, logger log.Logger) Option {
 	return func(b *serverBuilder) {
 		b.blockService = blockservice.New(store, eventBus, logger)
+	}
+}
+
+// WithBlockAPIService enables the block API service on the CometBFT server.
+func WithBlockAPIService(env *core.Environment) Option {
+	return func(b *serverBuilder) {
+		b.blockAPI = blockapi.New(env)
 	}
 }
 

@@ -159,6 +159,8 @@ message ProcessProposalRequest {
   bytes next_validators_hash = 7;
   // address of the public key of the original proposer of the block.
   bytes proposer_address = 8;
+  uint64 square_size = 9;
+  bytes data_root_hash = 10;
 }
 
 // ExtendVoteRequest extends a precommit vote with application-injected data.
@@ -371,6 +373,9 @@ enum ApplySnapshotChunkResult {
 // PrepareProposalResponse contains a list of transactions, which will form a block.
 message PrepareProposalResponse {
   repeated bytes txs = 1;
+  // The block data size.
+  uint64 square_size = 2;
+  bytes data_root_hash = 3;
 }
 
 // ProcessProposalResponse indicates the ABCI application's decision whenever

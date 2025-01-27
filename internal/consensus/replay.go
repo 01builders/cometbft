@@ -509,6 +509,7 @@ func (h *Handshaker) replayBlocks(
 // ApplyBlock on the proxyApp with the last block.
 func (h *Handshaker) replayBlock(state sm.State, height int64, proxyApp proxy.AppConnConsensus) (sm.State, error) {
 	block, meta := h.store.LoadBlock(height)
+	seenCommit := h.store.LoadSeenCommit(height)
 
 	// Use stubs for both mempool and evidence pool since no transactions nor
 	// evidence are needed here - block already exists.
@@ -516,7 +517,7 @@ func (h *Handshaker) replayBlock(state sm.State, height int64, proxyApp proxy.Ap
 	blockExec.SetEventBus(h.eventBus)
 
 	var err error
-	state, err = blockExec.ApplyBlock(state, meta.BlockID, block)
+	state, err = blockExec.ApplyBlock(state, meta.BlockID, block, seenCommit)
 	if err != nil {
 		return sm.State{}, err
 	}

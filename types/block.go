@@ -1324,6 +1324,9 @@ type Data struct {
 	// proofs that some element was included in the block
 	SquareSize uint64 `json:"square_size"`
 
+	// DataRootHash is the root hash of the data square.
+	DataRootHash cmtbytes.HexBytes `json:"data_root_hash"`
+
 	// Volatile
 	hash cmtbytes.HexBytes
 }
@@ -1371,7 +1374,7 @@ func (data *Data) ToProto() cmtproto.Data {
 		tp.Txs = txBzs
 	}
 	tp.SquareSize = data.SquareSize
-	tp.Hash = data.hash
+	tp.DataRootHash = data.DataRootHash
 
 	return *tp
 }
@@ -1395,7 +1398,7 @@ func DataFromProto(dp *cmtproto.Data) (Data, error) {
 	}
 
 	data.SquareSize = dp.SquareSize
-	data.hash = dp.Hash
+	data.DataRootHash = dp.DataRootHash
 
 	return *data, nil
 }

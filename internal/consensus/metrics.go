@@ -140,6 +140,15 @@ type Metrics struct {
 	// parameter SynchronyParams.MessageDelay, used by the PBTS algorithm.
 	// metrics:Difference in seconds between the local time when a proposal message is received and the timestamp in the proposal message.
 	ProposalTimestampDifference metrics.Histogram `metrics_bucketsizes:"-1.5, -1.0, -0.5, -0.2, 0, 0.2, 0.5, 1.0, 1.5, 2.0, 2.5, 4.0, 8.0" metrics_labels:"is_timely"`
+
+	// StartHeight is the height at which metrics began.
+	StartHeight metrics.Gauge
+	// BlockTimeSeconds is the duration between this block and the preceding one.
+	BlockTimeSeconds metrics.Gauge
+	// ApplicationRejectedProposals is the number of proposals rejected by the application.
+	ApplicationRejectedProposals metrics.Counter
+	// TimedOutProposals is the number of proposals that failed to be received in time.
+	TimedOutProposals metrics.Counter
 }
 
 func (m *Metrics) MarkProposalProcessed(accepted bool) {

@@ -48,17 +48,17 @@ func (_m *Mempool) CheckTx(tx types.Tx) (*abcicli.ReqRes, error) {
 	return r0, r1
 }
 
-// EnableTxsAvailable provides a mock function with given fields:
+// EnableTxsAvailable provides a mock function with no fields
 func (_m *Mempool) EnableTxsAvailable() {
 	_m.Called()
 }
 
-// Flush provides a mock function with given fields:
+// Flush provides a mock function with no fields
 func (_m *Mempool) Flush() {
 	_m.Called()
 }
 
-// FlushAppConn provides a mock function with given fields:
+// FlushAppConn provides a mock function with no fields
 func (_m *Mempool) FlushAppConn() error {
 	ret := _m.Called()
 
@@ -76,7 +76,7 @@ func (_m *Mempool) FlushAppConn() error {
 	return r0
 }
 
-// Lock provides a mock function with given fields:
+// Lock provides a mock function with no fields
 func (_m *Mempool) Lock() {
 	_m.Called()
 }
@@ -144,7 +144,7 @@ func (_m *Mempool) SetTxRemovedCallback(cb func(types.TxKey)) {
 	_m.Called(cb)
 }
 
-// Size provides a mock function with given fields:
+// Size provides a mock function with no fields
 func (_m *Mempool) Size() int {
 	ret := _m.Called()
 
@@ -162,7 +162,7 @@ func (_m *Mempool) Size() int {
 	return r0
 }
 
-// SizeBytes provides a mock function with given fields:
+// SizeBytes provides a mock function with no fields
 func (_m *Mempool) SizeBytes() int64 {
 	ret := _m.Called()
 
@@ -180,7 +180,7 @@ func (_m *Mempool) SizeBytes() int64 {
 	return r0
 }
 
-// TxsAvailable provides a mock function with given fields:
+// TxsAvailable provides a mock function with no fields
 func (_m *Mempool) TxsAvailable() <-chan struct{} {
 	ret := _m.Called()
 
@@ -200,7 +200,7 @@ func (_m *Mempool) TxsAvailable() <-chan struct{} {
 	return r0
 }
 
-// Unlock provides a mock function with given fields:
+// Unlock provides a mock function with no fields
 func (_m *Mempool) Unlock() {
 	_m.Called()
 }

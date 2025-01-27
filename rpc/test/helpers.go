@@ -27,6 +27,9 @@ type Options struct {
 	suppressStdout  bool
 	recreateConfig  bool
 	maxReqBatchSize int
+
+	// SpecificConfig will replace the global config if not nil
+	SpecificConfig *cfg.Config
 }
 
 var (
@@ -140,6 +143,9 @@ func StopCometBFT(node *nm.Node) {
 // NewCometBFT creates a new CometBFT server and sleeps forever.
 func NewCometBFT(app abci.Application, opts *Options) *nm.Node {
 	// Create & start node
+	if opts.SpecificConfig != nil {
+		globalConfig = opts.SpecificConfig
+	}
 	config := GetConfig(opts.recreateConfig)
 	var logger log.Logger
 	if opts.suppressStdout {
@@ -186,3 +192,12 @@ func RecreateConfig(o *Options) {
 func MaxReqBatchSize(o *Options) {
 	o.maxReqBatchSize = 2
 }
+
+// func GetBlockAPIClient() (core_grpc.BlockAPIClient, error) {
+// 	grpcAddr := globalConfig.RPC.GRPCListenAddress
+// 	client, err := core_grpc.StartBlockAPIGRPCClient(grpcAddr)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return client, nil
+// }

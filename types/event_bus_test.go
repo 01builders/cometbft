@@ -87,7 +87,9 @@ func TestEventBusPublishEventIndexWrapper(t *testing.T) {
 
 	// PublishEventTx adds 3 composite keys, so the query below should work
 	query := fmt.Sprintf("tm.event='Tx' AND tx.height=1 AND tx.hash='%X' AND testType.baz=1", tx.Hash())
-	txsSub, err := eventBus.Subscribe(context.Background(), "test", cmtquery.MustParse(query))
+	queryQ, err := cmtquery.New(query)
+	require.NoError(t, err)
+	txsSub, err := eventBus.Subscribe(context.Background(), "test", queryQ)
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -286,7 +288,7 @@ func TestEventBusPublishEventNewBlockHeader(t *testing.T) {
 		}
 	})
 
-	block := MakeBlock(0, []Tx{}, nil, []Evidence{})
+	block := MakeBlock(0, Data{Txs: []Tx{}}, nil, []Evidence{})
 	// PublishEventNewBlockHeader adds the tm.event compositeKey, so the query below should work
 	query := "tm.event='NewBlockHeader'"
 	headersSub, err := eventBus.Subscribe(context.Background(), "test", cmtquery.MustCompile(query))

@@ -563,6 +563,9 @@ type GRPCConfig struct {
 	// If no height is provided, the block results of the latest height are returned
 	BlockResultsService *GRPCBlockResultsServiceConfig `mapstructure:"block_results_service"`
 
+	// The gRPC block API service provides the block API
+	BlockAPIService *GRPCBlockAPIServiceConfig `mapstructure:"block_api_service"`
+
 	// The "privileged" section provides configuration for the gRPC server
 	// dedicated to privileged clients.
 	Privileged *GRPCPrivilegedConfig `mapstructure:"privileged"`
@@ -606,6 +609,10 @@ type GRPCVersionServiceConfig struct {
 }
 
 type GRPCBlockResultsServiceConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+}
+
+type GRPCBlockAPIServiceConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 }
 

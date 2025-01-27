@@ -257,7 +257,7 @@ func TestPruningWithHeight1(t *testing.T) {
 	err = pruner.SetApplicationBlockRetainHeight(0)
 	require.NoError(t, err)
 
-	block := state.MakeBlock(1, test.MakeNTxs(1, 10), new(types.Commit), nil, state.Validators.GetProposer().Address)
+	block := state.MakeBlock(1, types.Data{Txs: test.MakeNTxs(1, 10)}, new(types.Commit), nil, state.Validators.GetProposer().Address)
 	partSet, err := block.MakePartSet(2)
 	require.NoError(t, err)
 
