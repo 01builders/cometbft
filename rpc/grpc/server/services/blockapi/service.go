@@ -8,7 +8,7 @@ import (
 	"time"
 
 	crypto "github.com/cometbft/cometbft/api/cometbft/crypto/v1"
-	blockapisvc "github.com/cometbft/cometbft/api/cometbft/services/blockapi/v1"
+	blockapisvc "github.com/cometbft/cometbft/api/cometbft/services/blockAPI/v1"
 	cmttypes "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	"github.com/cometbft/cometbft/crypto/encoding"
 	"github.com/cometbft/cometbft/internal/rand"
