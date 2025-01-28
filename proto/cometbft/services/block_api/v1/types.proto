@@ -1,10 +1,6 @@
 syntax = "proto3";
-package cometbft.services.blockAPI.v1;
-option go_package = "github.com/cometbft/cometbft/api/cometbft/services/blockAPI/v1";
-
-import "cometbft/rpc/grpc/v1beta1/types.proto";
-
-import "cometbft/abci/v1beta3/types.proto";
+package cometbft.services.block_api.v1;
+option go_package = "github.com/cometbft/cometbft/api/cometbft/services/block_api/v1";
 
 import "cometbft/types/v1/types.proto";
 import "cometbft/p2p/v1/types.proto";
@@ -15,17 +11,17 @@ import "gogoproto/gogo.proto";
 
 
 // BlockAPI is an API for querying blocks.
-service BlockAPI {
+service BlockAPIService {
   // BlockByHash returns a block by its hash.
-  rpc BlockByHash(BlockByHashRequest) returns (stream StreamedBlockByHashResponse);
+  rpc BlockByHash(BlockByHashRequest) returns (stream BlockByHashResponse);
   // BlockByHeight returns a block by its height.
-  rpc BlockByHeight(BlockByHeightRequest) returns (stream StreamedBlockByHeightResponse);
+  rpc BlockByHeight(BlockByHeightRequest) returns (stream BlockByHeightResponse);
   // Commit returns the commit of a block.
   rpc Commit(CommitRequest) returns (CommitResponse);
   // ValidatorSet returns the validator set of a block.
   rpc ValidatorSet(ValidatorSetRequest) returns (ValidatorSetResponse);
   // SubscribeNewHeights subscribes to new heights.
-  rpc SubscribeNewHeights(SubscribeNewHeightsRequest) returns (stream NewHeightEvent);
+  rpc SubscribeNewHeights(SubscribeNewHeightsRequest) returns (stream SubscribeNewHeightsResponse);
   // Status returns the status of the node.
   rpc Status(StatusRequest) returns (StatusResponse);
 }
@@ -70,8 +66,8 @@ message BlockByHashRequest {
   message StatusRequest {}
 
 
-  // StreamedBlockByHashResponse is a response to a BlockByHashRequest.
-  message StreamedBlockByHashResponse {
+  // BlockByHashResponse is a response to a BlockByHashRequest.
+  message BlockByHashResponse {
       cometbft.types.v1.Part         block_part    = 1;
       // Commit is only set in the first part, and
       // it stays nil in the remaining ones.
@@ -82,8 +78,8 @@ message BlockByHashRequest {
       bool                          is_last       = 4;
     }
 
-    // StreamedBlockByHeightResponse is a response to a BlockByHeightRequest.
-    message StreamedBlockByHeightResponse {
+    // BlockByHeightResponse is a response to a BlockByHeightRequest.
+    message BlockByHeightResponse {
       cometbft.types.v1.Part block_part = 1;
       // Commit is only set in the first part, and
       // it stays nil in the remaining ones.
@@ -109,7 +105,7 @@ message BlockByHashRequest {
     }
 
     // NewHeightEvent is an event that indicates a new height.
-    message NewHeightEvent {
+    message SubscribeNewHeightsResponse {
       int64 height = 1;
       bytes hash   = 2;
     }

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	crypto "github.com/cometbft/cometbft/api/cometbft/crypto/v1"
-	blockapisvc "github.com/cometbft/cometbft/api/cometbft/services/blockAPI/v1"
+	blockapisvc "github.com/cometbft/cometbft/api/cometbft/services/block_api/v1"
 	cmttypes "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	"github.com/cometbft/cometbft/crypto/encoding"
 	"github.com/cometbft/cometbft/internal/rand"
@@ -21,7 +21,7 @@ import (
 type BlockAPI struct {
 	sync.Mutex
 	env                  *core.Environment
-	heightListeners      map[chan blockapisvc.NewHeightEvent]struct{}
+	heightListeners      map[chan blockapisvc.SubscribeNewHeightsResponse]struct{}
 	newBlockSubscription types.Subscription
 	eventBus             *types.EventBus
 	subscriptionID       string
@@ -31,7 +31,7 @@ type BlockAPI struct {
 
 func New(env *core.Environment) *BlockAPI {
 	return &BlockAPI{
-		heightListeners:   make(map[chan blockapisvc.NewHeightEvent]struct{}, 1000),
+		heightListeners:   make(map[chan blockapisvc.SubscribeNewHeightsResponse]struct{}, 1000),
 		subscriptionID:    fmt.Sprintf("block-api-subscription-%s", rand.Str(6)),
 		subscriptionQuery: types.EventQueryNewBlock,
 		eventBus:          env.EventBus,
@@ -143,21 +143,21 @@ func (blockAPI *BlockAPI) broadcastToListeners(ctx context.Context, height int64
 			select {
 			case <-ctx.Done():
 				return
-			case ch <- blockapisvc.NewHeightEvent{Height: height, Hash: hash}:
+			case ch <- blockapisvc.SubscribeNewHeightsResponse{Height: height, Hash: hash}:
 			}
 		}()
 	}
 }
 
-func (blockAPI *BlockAPI) addHeightListener() chan blockapisvc.NewHeightEvent {
+func (blockAPI *BlockAPI) addHeightListener() chan blockapisvc.SubscribeNewHeightsResponse {
 	blockAPI.Lock()
 	defer blockAPI.Unlock()
-	ch := make(chan blockapisvc.NewHeightEvent, 50)
+	ch := make(chan blockapisvc.SubscribeNewHeightsResponse, 50)
 	blockAPI.heightListeners[ch] = struct{}{}
 	return ch
 }
 
-func (blockAPI *BlockAPI) removeHeightListener(ch chan blockapisvc.NewHeightEvent) {
+func (blockAPI *BlockAPI) removeHeightListener(ch chan blockapisvc.SubscribeNewHeightsResponse) {
 	blockAPI.Lock()
 	defer blockAPI.Unlock()
 	delete(blockAPI.heightListeners, ch)
@@ -195,7 +195,7 @@ func (blockAPI *BlockAPI) Stop(ctx context.Context) error {
 	return err
 }
 
-func (blockAPI *BlockAPI) BlockByHash(req *blockapisvc.BlockByHashRequest, stream blockapisvc.BlockAPI_BlockByHashServer) error {
+func (blockAPI *BlockAPI) BlockByHash(req *blockapisvc.BlockByHashRequest, stream blockapisvc.BlockAPIService_BlockByHashServer) error {
 	blockStore := blockAPI.env.BlockStore
 	blockMeta := blockStore.LoadBlockMetaByHash(req.Hash)
 	if blockMeta == nil {
@@ -228,7 +228,7 @@ func (blockAPI *BlockAPI) BlockByHash(req *blockapisvc.BlockByHashRequest, strea
 			part.Proof = crypto.Proof{}
 		}
 		isLastPart := i == int(blockMeta.BlockID.PartSetHeader.Total)-1
-		resp := blockapisvc.StreamedBlockByHashResponse{
+		resp := blockapisvc.BlockByHashResponse{
 			BlockPart: part,
 			IsLast:    isLastPart,
 		}
@@ -244,7 +244,7 @@ func (blockAPI *BlockAPI) BlockByHash(req *blockapisvc.BlockByHashRequest, strea
 	return nil
 }
 
-func (blockAPI *BlockAPI) BlockByHeight(req *blockapisvc.BlockByHeightRequest, stream blockapisvc.BlockAPI_BlockByHeightServer) error {
+func (blockAPI *BlockAPI) BlockByHeight(req *blockapisvc.BlockByHeightRequest, stream blockapisvc.BlockAPIService_BlockByHeightServer) error {
 	blockStore := blockAPI.env.BlockStore
 	height := req.Height
 	if height == 0 {
@@ -283,7 +283,7 @@ func (blockAPI *BlockAPI) BlockByHeight(req *blockapisvc.BlockByHeightRequest, s
 			part.Proof = crypto.Proof{}
 		}
 		isLastPart := i == int(blockMeta.BlockID.PartSetHeader.Total)-1
-		resp := blockapisvc.StreamedBlockByHeightResponse{
+		resp := blockapisvc.BlockByHeightResponse{
 			BlockPart: part,
 			IsLast:    isLastPart,
 		}
@@ -372,7 +372,7 @@ func (blockAPI *BlockAPI) ValidatorSet(_ context.Context, req *blockapisvc.Valid
 	}, nil
 }
 
-func (blockAPI *BlockAPI) SubscribeNewHeights(_ *blockapisvc.SubscribeNewHeightsRequest, stream blockapisvc.BlockAPI_SubscribeNewHeightsServer) error {
+func (blockAPI *BlockAPI) SubscribeNewHeights(_ *blockapisvc.SubscribeNewHeightsRequest, stream blockapisvc.BlockAPIService_SubscribeNewHeightsServer) error {
 	heightListener := blockAPI.addHeightListener()
 	defer blockAPI.removeHeightListener(heightListener)
 

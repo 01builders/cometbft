@@ -6,12 +6,6 @@ import "cometbft/rpc/grpc/v1beta1/types.proto";
 
 import "cometbft/abci/v1beta3/types.proto";
 
-import "cometbft/types/v1beta1/types.proto";
-import "cometbft/p2p/v1/types.proto";
-import "cometbft/crypto/v1/keys.proto";
-import "cometbft/types/v1beta1/validator.proto";
-import "google/protobuf/timestamp.proto";
-import "gogoproto/gogo.proto";
 
 // ResponseBroadcastTx is a response of broadcasting the transaction.
 message ResponseBroadcastTx {
