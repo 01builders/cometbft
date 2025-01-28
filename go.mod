@@ -4,6 +4,8 @@ go 1.23
 
 toolchain go1.23.4
 
+replace github.com/cometbft/cometbft/api => ./api
+
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/adlio/schema v1.3.6
