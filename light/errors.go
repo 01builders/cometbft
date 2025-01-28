@@ -78,12 +78,12 @@ var ErrNoWitnesses = errors.New("no witnesses connected. please reset light clie
 // ----------------------------- INTERNAL ERRORS ---------------------------------
 
 // ErrConflictingHeaders is thrown when two conflicting headers are discovered.
-type errConflictingHeaders struct {
+type ErrConflictingHeaders struct {
 	Block        *types.LightBlock
 	WitnessIndex int
 }
 
-func (e errConflictingHeaders) Error() string {
+func (e ErrConflictingHeaders) Error() string {
 	return fmt.Sprintf(
 		"header hash (%X) from witness (%d) does not match primary",
 		e.Block.Hash(), e.WitnessIndex)
@@ -103,3 +103,19 @@ func (e errBadWitness) Error() string {
 var errNoDivergence = errors.New(
 	"sanity check failed: no divergence between the original trace and the provider's new trace",
 )
+
+// ErrProposerPrioritiesDiverge is thrown when two conflicting headers are
+// discovered, but the error is non-attributable comparing to ErrConflictingHeaders.
+// The difference is in validator set proposer priorities, which may change
+// with every round of consensus.
+type ErrProposerPrioritiesDiverge struct {
+	WitnessHash  []byte
+	WitnessIndex int
+	PrimaryHash  []byte
+}
+
+func (e ErrProposerPrioritiesDiverge) Error() string {
+	return fmt.Sprintf(
+		"validator set's proposer priority hashes do not match: witness[%d]=%X, primary=%X",
+		e.WitnessIndex, e.WitnessHash, e.PrimaryHash)
+}

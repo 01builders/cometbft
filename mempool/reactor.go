@@ -13,6 +13,7 @@ import (
 	protomem "github.com/cometbft/cometbft/api/cometbft/mempool/v1"
 	cfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/internal/clist"
+	"github.com/cometbft/cometbft/internal/trace"
 	"github.com/cometbft/cometbft/libs/log"
 	cmtsync "github.com/cometbft/cometbft/libs/sync"
 	"github.com/cometbft/cometbft/p2p"
@@ -42,15 +43,17 @@ type Reactor struct {
 	// connections for different groups of peers.
 	activePersistentPeersSemaphore    *semaphore.Weighted
 	activeNonPersistentPeersSemaphore *semaphore.Weighted
+	traceClient                       trace.Tracer
 }
 
 // NewReactor returns a new Reactor with the given config and mempool.
-func NewReactor(config *cfg.MempoolConfig, mempool *CListMempool, waitSync bool) *Reactor {
+func NewReactor(config *cfg.MempoolConfig, mempool *CListMempool, waitSync bool, traceClient trace.Tracer) *Reactor {
 	memR := &Reactor{
-		config:    config,
-		mempool:   mempool,
-		waitSync:  atomic.Bool{},
-		txSenders: make(map[types.TxKey]map[p2p.ID]bool),
+		config:      config,
+		mempool:     mempool,
+		waitSync:    atomic.Bool{},
+		txSenders:   make(map[types.TxKey]map[p2p.ID]bool),
+		traceClient: traceClient,
 	}
 	memR.BaseReactor = *p2p.NewBaseReactor("Mempool", memR)
 	if waitSync {

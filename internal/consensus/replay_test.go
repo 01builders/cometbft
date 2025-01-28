@@ -691,7 +691,7 @@ func testHandshakeReplay(t *testing.T, config *cfg.Config, nBlocks int, mode uin
 	})
 
 	// perform the replay protocol to sync Tendermint and the application
-	err = handshaker.Handshake(context.Background(), proxyApp)
+	_, err = handshaker.Handshake(context.Background(), proxyApp)
 	if expectError {
 		require.Error(t, err)
 		// finish the test early
@@ -927,9 +927,8 @@ func TestHandshakePanicsIfAppReturnsWrongAppHash(t *testing.T) {
 
 		assert.Panics(t, func() {
 			h := NewHandshaker(stateStore, state, store, genDoc)
-			if err = h.Handshake(context.Background(), proxyApp); err != nil {
-				t.Log(err)
-			}
+			_, err = h.Handshake(context.Background(), proxyApp)
+			require.Error(t, err)
 		})
 	}
 
@@ -951,9 +950,8 @@ func TestHandshakePanicsIfAppReturnsWrongAppHash(t *testing.T) {
 
 		assert.Panics(t, func() {
 			h := NewHandshaker(stateStore, state, store, genDoc)
-			if err = h.Handshake(context.Background(), proxyApp); err != nil {
-				t.Log(err)
-			}
+			_, err = h.Handshake(context.Background(), proxyApp)
+			require.Error(t, err)
 		})
 	}
 }
@@ -1251,10 +1249,8 @@ func TestHandshakeUpdatesValidators(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	if err := handshaker.Handshake(context.Background(), proxyApp); err != nil {
-		t.Fatalf("Error on abci handshake: %v", err)
-	}
-	var err error
+	_, err := handshaker.Handshake(context.Background(), proxyApp)
+	require.Error(t, err)
 	// reload the state, check the validator set was updated
 	state, err = stateStore.Load()
 	require.NoError(t, err)

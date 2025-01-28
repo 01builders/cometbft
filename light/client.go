@@ -384,7 +384,7 @@ func (c *Client) initializeWithTrustOptions(ctx context.Context, options TrustOp
 	}
 
 	// 3) Cross-verify with witnesses to ensure everybody has the same state.
-	if err := c.compareFirstHeaderWithWitnesses(ctx, l.SignedHeader); err != nil {
+	if err := c.compareFirstLightBlockWithWitnesses(ctx, l); err != nil {
 		return err
 	}
 
@@ -1126,9 +1126,9 @@ func (c *Client) findNewPrimary(ctx context.Context, height int64, remove bool) 
 	return nil, lastError
 }
 
-// compareFirstHeaderWithWitnesses compares h with all witnesses. If any
+// compareFirstLightBlockWithWitnesses compares h with all witnesses. If any
 // witness reports a different header than h, the function returns an error.
-func (c *Client) compareFirstHeaderWithWitnesses(ctx context.Context, h *types.SignedHeader) error {
+func (c *Client) compareFirstLightBlockWithWitnesses(ctx context.Context, l *types.LightBlock) error {
 	compareCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -1141,7 +1141,7 @@ func (c *Client) compareFirstHeaderWithWitnesses(ctx context.Context, h *types.S
 
 	errc := make(chan error, len(c.witnesses))
 	for i, witness := range c.witnesses {
-		go c.compareNewHeaderWithWitness(compareCtx, errc, h, witness, i)
+		go c.compareNewLightBlockWithWitness(compareCtx, errc, l, witness, i)
 	}
 
 	witnessesToRemove := make([]int, 0, len(c.witnesses))
@@ -1153,7 +1153,7 @@ func (c *Client) compareFirstHeaderWithWitnesses(ctx context.Context, h *types.S
 		switch e := err.(type) {
 		case nil:
 			continue
-		case errConflictingHeaders:
+		case ErrConflictingHeaders:
 			c.logger.Error(fmt.Sprintf(`Witness #%d has a different header. Please check primary is correct
 and remove witness. Otherwise, use the different primary`, e.WitnessIndex), "witness", c.witnesses[e.WitnessIndex])
 			return err
@@ -1163,6 +1163,11 @@ and remove witness. Otherwise, use the different primary`, e.WitnessIndex), "wit
 				"witness", c.witnesses[e.WitnessIndex],
 				"err", err)
 			witnessesToRemove = append(witnessesToRemove, e.WitnessIndex)
+		case ErrProposerPrioritiesDiverge:
+			c.logger.Error("Witness reports conflicting proposer priorities. "+
+				"Please check if the primary is correct or use a different witness.",
+				"witness", c.witnesses[e.WitnessIndex], "err", err)
+			return err
 		default: // benign errors can be ignored with the exception of context errors
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return err

@@ -10,9 +10,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/grafana/pyroscope-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	_ "net/http/pprof" //nolint: gosec
 
@@ -20,6 +22,7 @@ import (
 	bc "github.com/cometbft/cometbft/internal/blocksync"
 	cs "github.com/cometbft/cometbft/internal/consensus"
 	"github.com/cometbft/cometbft/internal/evidence"
+	"github.com/cometbft/cometbft/internal/trace"
 	"github.com/cometbft/cometbft/libs/log"
 	cmtpubsub "github.com/cometbft/cometbft/libs/pubsub"
 	"github.com/cometbft/cometbft/libs/service"
@@ -84,6 +87,9 @@ type Node struct {
 	indexerService    *txindex.IndexerService
 	prometheusSrv     *http.Server
 	pprofSrv          *http.Server
+	tracer            trace.Tracer
+	pyroscopeProfiler *pyroscope.Profiler
+	pyroscopeTracer   *sdktrace.TracerProvider
 }
 
 type waitSyncP2PReactor interface {
@@ -282,6 +288,7 @@ func NewNode(ctx context.Context,
 	logger log.Logger,
 	options ...Option,
 ) (*Node, error) {
+	var softwareVersion string
 	if config.BaseConfig.DBBackend == "boltdb" || config.BaseConfig.DBBackend == "cleveldb" {
 		logger.Info("WARNING: BoltDB and GoLevelDB are deprecated and will be removed in a future release. Please switch to a different backend.")
 	}
@@ -296,7 +303,7 @@ func NewNode(ctx context.Context,
 		return nil, err
 	}
 
-	csMetrics, p2pMetrics, memplMetrics, smMetrics, bstMetrics, abciMetrics, bsMetrics, ssMetrics := metricsProvider(genDoc.ChainID)
+	csMetrics, p2pMetrics, memplMetrics, smMetrics, bstMetrics, abciMetrics, bsMetrics, ssMetrics := metricsProvider(genDoc.ChainID, softwareVersion)
 	stateStore := sm.NewStore(stateDB, sm.StoreOptions{
 		DiscardABCIResponses: config.Storage.DiscardABCIResponses,
 		Metrics:              smMetrics,
@@ -367,7 +374,8 @@ func NewNode(ctx context.Context,
 	// and replays any blocks as necessary to sync CometBFT with the app.
 	consensusLogger := logger.With("module", "consensus")
 	if !stateSync {
-		if err := doHandshake(ctx, stateStore, state, blockStore, genDoc, eventBus, proxyApp, consensusLogger); err != nil {
+		softwareVersion, err = doHandshake(ctx, stateStore, state, blockStore, genDoc, eventBus, proxyApp, consensusLogger)
+		if err != nil {
 			return nil, err
 		}
 
@@ -387,7 +395,18 @@ func NewNode(ctx context.Context,
 
 	logNodeStartupInfo(state, pubKey, logger, consensusLogger)
 
-	mempool, mempoolReactor := createMempoolAndMempoolReactor(config, proxyApp, state, waitSync, memplMetrics, logger)
+	// create an optional tracer client to collect trace data.
+	tracer, err := trace.NewTracer(
+		config,
+		logger,
+		genDoc.ChainID,
+		string(nodeKey.ID()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	mempool, mempoolReactor := createMempoolAndMempoolReactor(config, proxyApp, state, waitSync, memplMetrics, logger, tracer)
 
 	evidenceReactor, evidencePool, err := createEvidenceReactor(config, dbProvider, stateStore, blockStore, logger)
 	if err != nil {
@@ -434,7 +453,7 @@ func NewNode(ctx context.Context,
 
 	consensusReactor, consensusState := createConsensusReactor(
 		config, state, blockExec, blockStore, mempool, evidencePool,
-		privValidator, csMetrics, waitSync, eventBus, consensusLogger, offlineStateSyncHeight,
+		privValidator, csMetrics, waitSync, eventBus, consensusLogger, offlineStateSyncHeight, tracer,
 	)
 
 	err = stateStore.SetOfflineStateSyncHeight(0)
@@ -453,17 +472,17 @@ func NewNode(ctx context.Context,
 	)
 	stateSyncReactor.SetLogger(logger.With("module", "statesync"))
 
-	nodeInfo, err := makeNodeInfo(config, nodeKey, txIndexer, genDoc, state)
+	nodeInfo, err := makeNodeInfo(config, nodeKey, txIndexer, genDoc, state, softwareVersion)
 	if err != nil {
 		return nil, err
 	}
 
-	transport, peerFilters := createTransport(config, nodeInfo, nodeKey, proxyApp)
+	transport, peerFilters := createTransport(config, nodeInfo, nodeKey, proxyApp, tracer)
 
 	p2pLogger := logger.With("module", "p2p")
 	sw := createSwitch(
 		config, transport, p2pMetrics, peerFilters, mempoolReactor, bcReactor,
-		stateSyncReactor, consensusReactor, evidenceReactor, nodeInfo, nodeKey, p2pLogger,
+		stateSyncReactor, consensusReactor, evidenceReactor, nodeInfo, nodeKey, p2pLogger, tracer,
 	)
 
 	err = sw.AddPersistentPeers(splitAndTrimEmpty(config.P2P.PersistentPeers, ",", " "))
@@ -569,6 +588,18 @@ func (n *Node) OnStart() error {
 		n.rpcListeners = listeners
 	}
 
+	if n.config.Instrumentation.PyroscopeURL != "" {
+		profiler, tracer, err := setupPyroscope(
+			n.config.Instrumentation,
+			string(n.nodeKey.ID()),
+		)
+		if err != nil {
+			return err
+		}
+		n.pyroscopeProfiler = profiler
+		n.pyroscopeTracer = tracer
+	}
+
 	// Start the transport.
 	addr, err := p2p.NewNetAddressString(p2p.IDAddressString(n.nodeKey.ID(), n.config.P2P.ListenAddress))
 	if err != nil {
@@ -666,6 +697,22 @@ func (n *Node) OnStop() {
 			n.Logger.Error("Pprof HTTP server Shutdown", "err", err)
 		}
 	}
+	if n.tracer != nil {
+		n.tracer.Stop()
+	}
+
+	if n.pyroscopeProfiler != nil {
+		if err := n.pyroscopeProfiler.Stop(); err != nil {
+			n.Logger.Error("Pyroscope profiler Stop", "err", err)
+		}
+	}
+
+	if n.pyroscopeTracer != nil {
+		if err := n.pyroscopeTracer.Shutdown(context.Background()); err != nil {
+			n.Logger.Error("Pyroscope tracer Shutdown", "err", err)
+		}
+	}
+
 	if n.blockStore != nil {
 		n.Logger.Info("Closing blockstore")
 		if err := n.blockStore.Close(); err != nil {
@@ -678,6 +725,7 @@ func (n *Node) OnStop() {
 			n.Logger.Error("problem closing statestore", "err", err)
 		}
 	}
+
 	if n.evidencePool != nil {
 		n.Logger.Info("Closing evidencestore")
 		if err := n.EvidencePool().Close(); err != nil {
@@ -985,6 +1033,7 @@ func makeNodeInfo(
 	txIndexer txindex.TxIndexer,
 	genDoc *types.GenesisDoc,
 	state sm.State,
+	softwareVersion string,
 ) (p2p.DefaultNodeInfo, error) {
 	txIndexerStatus := "on"
 	if _, ok := txIndexer.(*null.TxIndex); ok {
@@ -999,7 +1048,7 @@ func makeNodeInfo(
 		),
 		DefaultNodeID: nodeKey.ID(),
 		Network:       genDoc.ChainID,
-		Version:       version.CMTSemVer,
+		Version:       softwareVersion, // TODO: is softwareVersion cmtSemver?
 		Channels: []byte{
 			bc.BlocksyncChannel,
 			cs.StateChannel, cs.DataChannel, cs.VoteChannel, cs.VoteSetBitsChannel,

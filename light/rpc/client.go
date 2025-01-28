@@ -681,3 +681,28 @@ func validateSkipCount(page, perPage int) int {
 
 	return skipCount
 }
+
+// DataCommitment returns the data commitment for the given height.
+func (c *Client) DataCommitment(ctx context.Context, start, end uint64) (*ctypes.ResultDataCommitment, error) {
+	return c.next.DataCommitment(ctx, start, end)
+}
+
+func (c *Client) DataRootInclusionProof(ctx context.Context, height, start, end uint64) (*ctypes.ResultDataRootInclusionProof, error) {
+	return c.next.DataRootInclusionProof(ctx, height, start, end)
+}
+
+func (c *Client) ProveShares(ctx context.Context, height, start, end uint64) (types.ShareProof, error) {
+	return c.next.ProveShares(ctx, height, start, end)
+}
+
+func (c *Client) ProveSharesV2(ctx context.Context, height, start, end uint64) (*ctypes.ResultShareProof, error) {
+	return c.next.ProveSharesV2(ctx, height, start, end)
+}
+
+func (c *Client) TxStatus(ctx context.Context, hash []byte) (*ctypes.ResultTxStatus, error) {
+	return c.next.TxStatus(ctx, hash)
+}
+
+func (c *Client) SignedBlock(ctx context.Context, height *int64) (*ctypes.ResultSignedBlock, error) {
+	return c.next.SignedBlock(ctx, height)
+}
