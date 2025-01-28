@@ -96,6 +96,18 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 
 			Buckets: stdprometheus.ExponentialBuckets(0.0002, 10, 5),
 		}, append(labels, "method")).With(labelsAndValues...),
+		RejectedTransactions: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "rejected_transactions",
+			Help:      "The number of transactions rejected by the application.",
+		}, labels).With(labelsAndValues...),
+		ProcessedTransactions: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "processed_transactions",
+			Help:      "The number of transactions processed by the application.",
+		}, labels).With(labelsAndValues...),
 	}
 }
 
@@ -114,5 +126,7 @@ func NopMetrics() *Metrics {
 		TxIndexerBaseHeight:                    discard.NewGauge(),
 		BlockIndexerBaseHeight:                 discard.NewGauge(),
 		StoreAccessDurationSeconds:             discard.NewHistogram(),
+		RejectedTransactions:                   discard.NewCounter(),
+		ProcessedTransactions:                  discard.NewCounter(),
 	}
 }
