@@ -45,7 +45,7 @@ func (tx Tx) Key() TxKey {
 
 // String returns the hex-encoded transaction as a string.
 func (tx Tx) String() string {
-	return fmt.Sprintf("Tx{%X}", tx)
+	return fmt.Sprintf("Tx{%X}", []byte(tx))
 }
 
 func TxKeyFromBytes(bytes []byte) (TxKey, error) {
