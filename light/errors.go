@@ -89,6 +89,22 @@ func (e ErrConflictingHeaders) Error() string {
 		e.Block.Hash(), e.WitnessIndex)
 }
 
+// ErrProposerPrioritiesDiverge is thrown when two conflicting headers are
+// discovered, but the error is non-attributable comparing to ErrConflictingHeaders.
+// The difference is in validator set proposer priorities, which may change
+// with every round of consensus.
+type ErrProposerPrioritiesDiverge struct {
+	WitnessHash  []byte
+	WitnessIndex int
+	PrimaryHash  []byte
+}
+
+func (e ErrProposerPrioritiesDiverge) Error() string {
+	return fmt.Sprintf(
+		"validator set's proposer priority hashes do not match: witness[%d]=%X, primary=%X",
+		e.WitnessIndex, e.WitnessHash, e.PrimaryHash)
+}
+
 // ----------------------------- INTERNAL ERRORS ---------------------------------
 
 // errBadWitness is returned when the witness either does not respond or
@@ -105,19 +121,3 @@ func (e errBadWitness) Error() string {
 var errNoDivergence = errors.New(
 	"sanity check failed: no divergence between the original trace and the provider's new trace",
 )
-
-// ErrProposerPrioritiesDiverge is thrown when two conflicting headers are
-// discovered, but the error is non-attributable comparing to ErrConflictingHeaders.
-// The difference is in validator set proposer priorities, which may change
-// with every round of consensus.
-type ErrProposerPrioritiesDiverge struct {
-	WitnessHash  []byte
-	WitnessIndex int
-	PrimaryHash  []byte
-}
-
-func (e ErrProposerPrioritiesDiverge) Error() string {
-	return fmt.Sprintf(
-		"validator set's proposer priority hashes do not match: witness[%d]=%X, primary=%X",
-		e.WitnessIndex, e.WitnessHash, e.PrimaryHash)
-}

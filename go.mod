@@ -8,11 +8,8 @@ replace github.com/cometbft/cometbft/api => ./api
 
 require (
 	github.com/BurntSushi/toml v1.4.0
-	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/adlio/schema v1.3.6
-	github.com/aws/aws-sdk-go v1.55.6
 	github.com/btcsuite/btcd/btcutil v1.1.6
-	github.com/celestiaorg/nmt v0.23.0
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cometbft/cometbft-db v1.0.1
 	github.com/cometbft/cometbft-load-test v0.3.0
@@ -21,22 +18,15 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/dgraph-io/badger/v4 v4.5.1
 	github.com/fortytw2/leaktest v1.3.0
-	github.com/go-git/go-git/v5 v5.13.2
 	github.com/go-kit/log v0.2.1
 	github.com/go-logfmt/logfmt v0.6.0
 	github.com/goccmack/goutil v1.2.3
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/orderedcode v0.0.1
-	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/grafana/otel-profiling-go v0.5.1
-	github.com/grafana/pyroscope-go v1.2.0
-	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/lib/pq v1.10.9
 	github.com/minio/highwayhash v1.0.3
-	github.com/mitchellh/mapstructure v1.5.0
-	github.com/oasisprotocol/curve25519-voi v0.0.0-20220708102147-0a8a51822cae
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.20.5
@@ -49,17 +39,31 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
+	golang.org/x/crypto v0.32.0
+	golang.org/x/net v0.34.0
+	google.golang.org/grpc v1.70.0
+)
+
+require github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
+
+require (
+	github.com/Masterminds/semver/v3 v3.3.1
+	github.com/aws/aws-sdk-go v1.55.6
+	github.com/celestiaorg/nmt v0.23.0
+	github.com/go-git/go-git/v5 v5.13.2
+	github.com/google/uuid v1.6.0
+	github.com/grafana/otel-profiling-go v0.5.1
+	github.com/grafana/pyroscope-go v1.2.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
+	github.com/mitchellh/mapstructure v1.5.0
+	github.com/oasisprotocol/curve25519-voi v0.0.0-20220708102147-0a8a51822cae
 	github.com/supranational/blst v0.3.13
-	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.34.0
 	go.opentelemetry.io/otel/sdk v1.34.0
-	golang.org/x/crypto v0.32.0
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
-	golang.org/x/net v0.34.0
 	golang.org/x/sync v0.10.0
 	gonum.org/v1/gonum v0.15.1
-	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.4
 )
 

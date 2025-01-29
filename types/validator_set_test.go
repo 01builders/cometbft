@@ -79,7 +79,7 @@ func TestValidatorSetBasic(t *testing.T) {
 	assert.Equal(t, proposerPriority, val.ProposerPriority)
 }
 
-func TestValidatorSetValidateBasic(t *testing.T) {
+func TestValidatorSet_ValidateBasic(t *testing.T) {
 	val, _ := RandValidator(false, 1)
 	badVal := &Validator{}
 	val2, _ := RandValidator(false, 1)

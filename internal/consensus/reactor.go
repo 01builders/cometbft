@@ -274,7 +274,7 @@ func (conR *Reactor) Receive(e p2p.Envelope) {
 		switch msg := msg.(type) {
 		case *NewRoundStepMessage:
 			conR.rsMtx.RLock()
-			initialHeight := conR.conS.state.InitialHeight
+			initialHeight := conR.initialHeight
 			conR.rsMtx.RUnlock()
 			schema.WriteConsensusState(
 				conR.traceClient,
@@ -315,6 +315,8 @@ func (conR *Reactor) Receive(e p2p.Envelope) {
 		case *HasProposalBlockPartMessage:
 			ps.ApplyHasProposalBlockPartMessage(msg)
 		case *VoteSetMaj23Message:
+
+			conR.rsMtx.RLock()
 			height, votes := conR.rs.Height, conR.rs.Votes
 			conR.rsMtx.RUnlock()
 			schema.WriteConsensusState(

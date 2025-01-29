@@ -176,11 +176,6 @@ func (_m *Mempool) RemoveTxByKey(txKey types.TxKey) error {
 	return r0
 }
 
-// SetTxRemovedCallback provides a mock function with given fields: cb
-func (_m *Mempool) SetTxRemovedCallback(cb func(types.TxKey)) {
-	_m.Called(cb)
-}
-
 // Size provides a mock function with no fields
 func (_m *Mempool) Size() int {
 	ret := _m.Called()
