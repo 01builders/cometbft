@@ -94,6 +94,7 @@ func createConfig() *cfg.Config {
 	c.GRPC.VersionService.Enabled = true
 	c.GRPC.Privileged.ListenAddress = makeAddr()
 	c.GRPC.Privileged.PruningService.Enabled = true
+	c.GRPC.BlockAPIService.Enabled = true
 	// Set pruning interval to a value lower than the default for some of the
 	// tests that rely on pruning to occur quickly
 	c.Storage.Pruning.Interval = 100 * time.Millisecond

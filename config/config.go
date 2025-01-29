@@ -597,6 +597,7 @@ func TestGRPCConfig() *GRPCConfig {
 		VersionService:      TestGRPCVersionServiceConfig(),
 		BlockService:        TestGRPCBlockServiceConfig(),
 		BlockResultsService: DefaultGRPCBlockResultsServiceConfig(),
+		BlockAPIService:     DefaultGRPCBlockAPIServiceConfig(),
 		Privileged:          TestGRPCPrivilegedConfig(),
 	}
 }
