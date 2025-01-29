@@ -320,7 +320,6 @@ func NewNodeWithCliParams(ctx context.Context,
 	cliParams CliParams,
 	options ...Option,
 ) (*Node, error) {
-	var softwareVersion string
 	if config.BaseConfig.DBBackend == "boltdb" || config.BaseConfig.DBBackend == "cleveldb" {
 		logger.Info("WARNING: BoltDB and GoLevelDB are deprecated and will be removed in a future release. Please switch to a different backend.")
 	}
@@ -339,7 +338,7 @@ func NewNodeWithCliParams(ctx context.Context,
 		return nil, err
 	}
 
-	csMetrics, p2pMetrics, memplMetrics, smMetrics, bstMetrics, abciMetrics, bsMetrics, ssMetrics := metricsProvider(genDoc.ChainID, softwareVersion)
+	csMetrics, p2pMetrics, memplMetrics, smMetrics, bstMetrics, abciMetrics, bsMetrics, ssMetrics := metricsProvider(genDoc.ChainID)
 	stateStore := sm.NewStore(stateDB, sm.StoreOptions{
 		DiscardABCIResponses: config.Storage.DiscardABCIResponses,
 		Metrics:              smMetrics,
@@ -410,6 +409,7 @@ func NewNodeWithCliParams(ctx context.Context,
 	// Create the handshaker, which calls RequestInfo, sets the AppVersion on the state,
 	// and replays any blocks as necessary to sync CometBFT with the app.
 	consensusLogger := logger.With("module", "consensus")
+	var softwareVersion string
 	if !stateSync {
 		softwareVersion, err = doHandshake(ctx, stateStore, state, blockStore, genDoc, eventBus, proxyApp, consensusLogger)
 		if err != nil {
