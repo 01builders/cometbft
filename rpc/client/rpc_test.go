@@ -373,7 +373,7 @@ func TestUnconfirmedTxs(t *testing.T) {
 
 	ch := make(chan *abci.CheckTxResponse, 1)
 	mempool := node.Mempool()
-	reqRes, err := mempool.CheckTx(tx)
+	reqRes, err := mempool.CheckTx(tx, "")
 	require.NoError(t, err)
 	ch <- reqRes.Response.GetCheckTx()
 
@@ -404,7 +404,7 @@ func TestNumUnconfirmedTxs(t *testing.T) {
 
 	ch := make(chan *abci.CheckTxResponse, 1)
 	mempool := node.Mempool()
-	reqRes, err := mempool.CheckTx(tx)
+	reqRes, err := mempool.CheckTx(tx, "")
 	require.NoError(t, err)
 	ch <- reqRes.Response.GetCheckTx()
 
@@ -637,7 +637,6 @@ func TestTxSearch(t *testing.T) {
 
 		totalTx := 0
 		for page := 1; page <= pages; page++ {
-			page := page
 			result, err := c.TxSearch(context.Background(), "tx.height >= 1", true, &page, &perPage, "asc")
 			require.NoError(t, err)
 			if page < pages {

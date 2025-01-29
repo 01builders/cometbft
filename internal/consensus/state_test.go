@@ -1518,7 +1518,7 @@ func TestStateLock_POLSafety1(t *testing.T) {
 
 	// add a tx to the mempool
 	tx := kvstore.NewRandomTx(22)
-	reqRes, err := assertMempool(cs1.txNotifier).CheckTx(tx)
+	reqRes, err := assertMempool(cs1.txNotifier).CheckTx(tx, "")
 	require.NoError(t, err)
 	require.False(t, reqRes.Response.GetCheckTx().IsErr())
 
@@ -1615,7 +1615,7 @@ func TestStateLock_POLSafety2(t *testing.T) {
 
 	// add a tx to the mempool
 	tx := kvstore.NewRandomTx(22)
-	reqRes, err := assertMempool(cs1.txNotifier).CheckTx(tx)
+	reqRes, err := assertMempool(cs1.txNotifier).CheckTx(tx, "")
 	require.NoError(t, err)
 	require.False(t, reqRes.Response.GetCheckTx().IsErr())
 
@@ -2572,6 +2572,38 @@ func TestVoteExtensionEnableHeight(t *testing.T) {
 	}
 }
 
+// TestStateDoesntCrashOnInvalidVote tests that the state does not crash when
+// receiving an invalid vote. In particular, one with the incorrect
+// ValidatorIndex.
+func TestStateDoesntCrashOnInvalidVote(t *testing.T) {
+	cs, vss := randState(2)
+	height, round, chainID := cs.Height, cs.Round, cs.state.ChainID
+	// create dummy peer
+	peer := p2pmock.NewPeer(nil)
+
+	startTestRound(cs, height, round)
+
+	randBytes := cmtrand.Bytes(tmhash.Size)
+	blockID := types.BlockID{
+		Hash: randBytes,
+	}
+
+	vote := signVote(vss[1], types.PrecommitType, chainID, blockID, true)
+	// Non-existent validator index
+	vote.ValidatorIndex = int32(len(vss))
+
+	voteMessage := &VoteMessage{vote}
+	assert.NotPanics(t, func() {
+		cs.handleMsg(msgInfo{voteMessage, peer.ID(), time.Time{}})
+	})
+
+	added, err := cs.AddVote(vote, peer.ID())
+	assert.False(t, added)
+	assert.NoError(t, err)
+	// TODO: uncomment once we punish peer and return an error
+	// assert.Equal(t, ErrInvalidVote{Reason: "ValidatorIndex 2 is out of bounds [0, 2)"}, err)
+}
+
 // 4 vals, 3 Nil Precommits at P0
 // What we want:
 // P0 waits for timeoutPrecommit before starting next round.
@@ -2796,6 +2828,7 @@ func (n *fakeTxNotifier) Notify() {
 // and third precommit arrives which leads to the commit of that header and the correct
 // start of the next round.
 func TestStartNextHeightCorrectlyAfterTimeout(t *testing.T) {
+	config.Consensus.SkipTimeoutCommit = false //nolint:staticcheck
 	config.Consensus.TimeoutCommit = 10 * time.Millisecond
 	cs1, vss := randState(4)
 	cs1.txNotifier = &fakeTxNotifier{ch: make(chan struct{})}
@@ -2839,7 +2872,7 @@ func TestStartNextHeightCorrectlyAfterTimeout(t *testing.T) {
 	signAddVotes(cs1, types.PrecommitType, chainID, blockID, true, vs3)
 
 	// wait till timeout occurs
-	ensureNewTimeout(precommitTimeoutCh, height, round, cs1.config.TimeoutVote.Nanoseconds())
+	ensureNewTimeout(precommitTimeoutCh, height, round, cs1.config.TimeoutPrecommit.Nanoseconds())
 
 	ensureNewRound(newRoundCh, height, round+1)
 
@@ -2862,6 +2895,7 @@ func TestResetTimeoutPrecommitUponNewHeight(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	config.Consensus.SkipTimeoutCommit = false //nolint:staticcheck
 	config.Consensus.TimeoutCommit = 10 * time.Millisecond
 	cs1, vss := randState(4)
 
@@ -3251,4 +3285,33 @@ func findBlockSizeLimit(t *testing.T, height, maxBytes int64, cs *State, partSiz
 	}
 	require.Fail(t, "We shouldn't hit the end of the loop")
 	return nil, nil
+}
+
+// TestReadSerializedBlockFromBlockParts tests that the readSerializedBlockFromBlockParts function
+// reads the block correctly from the block parts.
+func TestReadSerializedBlockFromBlockParts(t *testing.T) {
+	sizes := []int{0, 5, 64, 70, 128, 200}
+
+	// iterate through many initial buffer sizes and new block sizes.
+	// (Skip new block size = 0, as that is not valid construction)
+	// Ensure that we read back the correct block size, and the buffer is resized correctly.
+	for i := 0; i < len(sizes); i++ {
+		for j := 1; j < len(sizes); j++ {
+			initialSize, newBlockSize := sizes[i], sizes[j]
+			testName := fmt.Sprintf("initialSize=%d,newBlockSize=%d", initialSize, newBlockSize)
+			t.Run(testName, func(t *testing.T) {
+				blockData := cmtrand.Bytes(newBlockSize)
+				ps := types.NewPartSetFromData(blockData, 64)
+				cs := &State{
+					serializedBlockBuffer: make([]byte, initialSize),
+				}
+				cs.ProposalBlockParts = ps
+
+				serializedBlock, err := cs.readSerializedBlockFromBlockParts()
+				require.NoError(t, err)
+				require.Equal(t, blockData, serializedBlock)
+				require.Equal(t, len(cs.serializedBlockBuffer), max(initialSize, newBlockSize))
+			})
+		}
+	}
 }

@@ -3,7 +3,7 @@ order: 2
 title: CometBFT How-to Guides
 description: How-to Guides
 parent:
-    order: 1
+    order: 2
 ---
 
 # How-To Guides
@@ -20,3 +20,4 @@ examples to help users acquire real-world experience while learning.
 - [Application Development](./app-dev/README.md)
 - [Tools](./tools/README.md)
 - [Running Networks](./networks/README.md)
+- [Upgrading Guides](upgrades/README.md)

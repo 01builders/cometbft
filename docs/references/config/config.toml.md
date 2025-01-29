@@ -109,29 +109,32 @@ Nodes on the peer-to-peer network are identified by `nodeID@host:port` as discus
 ### db_backend
 The chosen database backend for the node.
 ```toml
-db_backend = "goleveldb"
+db_backend = "pebbledb"
 ```
 
 | Value type          | string        | dependencies  | GitHub                                           |
 |:--------------------|:--------------|:--------------|:-------------------------------------------------|
-| **Possible values** | `"goleveldb"` | pure Golang   | [goleveldb](https://github.com/syndtr/goleveldb) |
+| **Possible values** | `"badgerdb"`  | pure Golang   | [badger](https://github.com/dgraph-io/badger)    |
+|                     | `"goleveldb"` | pure Golang   | [goleveldb](https://github.com/syndtr/goleveldb) |
+|                     | `"pebbledb"`  | pure Golang   | [pebble](https://github.com/cockroachdb/pebble)  |
+|                     | `"rocksdb"`   | requires gcc  | [grocksdb](https://github.com/linxGnu/grocksdb)  |
 |                     | `"cleveldb"`  | requires gcc  | [leveldb](https://github.com/google/leveldb)     |
 |                     | `"boltdb"`    | pure Golang   | [bbolt](https://github.com/etcd-io/bbolt)        |
-|                     | `"rocksdb"`   | requires gcc  | [grocksdb](https://github.com/linxGnu/grocksdb)  |
-|                     | `"badgerdb"`  | pure Golang   | [badger](https://github.com/dgraph-io/badger)    |
-|                     | `"pebbledb"`  | pure Golang   | [pebble](https://github.com/cockroachdb/pebble)  |
 
-During the build process, by default, only the `goleveldb` library is built into the binary.
+During the build process, by default, only the `pebbledb` library is built into the binary.
 To add support for alternative databases, you need to add them in the build tags.
 For example: `go build -tags cleveldb,rocksdb`.
 
-The RocksDB fork has API changes from the upstream RocksDB implementation. All other databases claim a stable API.
+`goleveldb` is supported by default too, but it is no longer recommended for
+production use.
 
-The CometBFT team tests rely on the GoLevelDB implementation. All other implementations are considered experimental from
-a CometBFT perspective. The supported databases are part of the [cometbft-db](https://github.com/cometbft/cometbft-db) library
+The RocksDB fork has API changes from the upstream RocksDB implementation. All
+other databases claim a stable API.
+
+The supported databases are part of the [cometbft-db](https://github.com/cometbft/cometbft-db) library
 that CometBFT uses as a common database interface to various databases.
 
-`boltdb` and `cleveldb` are deprecated and will be removed in a future release.
+**NOTE**: `boltdb` and `cleveldb` are deprecated and will be removed in a future release.
 
 ### db_dir
 The directory path where the database is stored.
@@ -190,6 +193,24 @@ Set RPC server logs to `debug` and leave everything else at `info`:
 ```toml
 log_level = "rpc-server:debug"
 ```
+
+#### Stripping debug log messages at compile-time
+
+Logging debug messages can lead to significant memory allocations, especially when outputting variable values. In Go,
+even if `log_level` is not set to `debug`, these allocations can still occur because the program evaluates the debug
+statements regardless of the log level.
+
+To prevent unnecessary memory usage, you can strip out all debug-level code from the binary at compile time using
+build flags. This approach improves the performance of CometBFT by excluding debug messages entirely, even when log_level
+is set to debug. This technique is ideal for production environments that prioritize performance optimization over debug logging.
+
+In order to build a binary stripping all debug log messages (e.g. `log.Debug()`) from the binary, use the `nodebug` tag:
+```
+COMETBFT_BUILD_OPTIONS=nodebug make install
+```
+
+> Note: Compiling CometBFT with this method will completely disable all debug messages. If you require debug output,
+> avoid compiling the binary with the `nodebug` build tag.
 
 ### log_format
 Define the output format of the logs.
@@ -1635,53 +1656,36 @@ round of consensus will adopt increased timeout durations.
 Timeouts increase linearly over rounds, so that the `timeout_propose` adopted
 in round `r` is `timeout_propose + r * timeout_propose_delta`.
 
-### consensus.timeout_vote
+### consensus.timeout_prevote
 
-How long a node waits, after receiving +2/3 conflicting prevotes/precommits, before pre-committing nil/going into a new round.
+How long a node waits, after receiving +2/3 conflicting prevotes, before pre-committing nil.
 
 ```toml
-timeout_vote = "1s"
+timeout_prevote = "1s"
 ```
 
 | Value type          | string (duration) |
 |:--------------------|:------------------|
 | **Possible values** | &gt;= `"0s"`      |
 
-#### Prevotess
-
 A validator that receives +2/3 prevotes for a block, precommits that block.
 If it receives +2/3 prevotes for nil, it precommits nil.
 But if prevotes are received from +2/3 validators, but the prevotes do not
 match (e.g., they are for different blocks or for blocks and nil), the
-validator waits for `timeout_vote` time before precommiting nil.
+validator waits for `timeout_prevote` time before precommiting nil.
 This gives the validator a chance to wait for additional prevotes and to
 possibly observe +2/3 prevotes for a block.
 
-#### Precommits
+Setting `timeout_prevote` to `0s` means that the validator will not wait
+for additional prevotes (other than the mandatory +2/3) before precommitting nil.
+This has important liveness implications and should be avoided.
 
-A node that receives +2/3 precommits for a block commits that block.
-This is a successful consensus round.
-If no block gathers +2/3 precommits, the node cannot commit.
-This is an unsuccessful consensus round and the node will start an additional
-round of consensus.
-Before starting the next round, the node waits for `timeout_vote` time.
-This gives the node a chance to wait for additional precommits and to possibly
-observe +2/3 precommits for a block, which would allow the node to commit that
-block in the current round.
+### consensus.timeout_prevote_delta
 
-#### Warning
-
-Setting `timeout_vote` to `0s` means that the validator will not wait for
-additional prevotes/precommits (other than the mandatory +2/3) before
-precommitting nil/moving to the next round. This has important liveness
-implications and should be avoided.
-
-### consensus.timeout_vote_delta
-
-How much the `timeout_vote` increases with each round.
+How much the `timeout_prevote` increases with each round.
 
 ```toml
-timeout_vote_delta = "500ms"
+timeout_prevote_delta = "500ms"
 ```
 
 | Value type          | string (duration) |
@@ -1691,8 +1695,51 @@ timeout_vote_delta = "500ms"
 Consensus timeouts are adaptive.
 This means that when a round of consensus fails to commit a block, the next
 round of consensus will adopt increased timeout durations.
-Timeouts increase linearly over rounds, so that the `timeout_vote` adopted
-in round `r` is `timeout_vote + r * timeout_vote_delta`.
+Timeouts increase linearly over rounds, so that the `timeout_prevote` adopted
+in round `r` is `timeout_prevote + r * timeout_prevote_delta`.
+
+### consensus.timeout_precommit
+
+How long a node waits, after receiving +2/3 conflicting precommits, before moving to the next round.
+
+```toml
+timeout_precommit = "1s"
+```
+
+| Value type          | string (duration) |
+|:--------------------|:------------------|
+| **Possible values** | &gt;= `"0s"`      |
+
+A node that receives +2/3 precommits for a block commits that block.
+This is a successful consensus round.
+If no block gathers +2/3 precommits, the node cannot commit.
+This is an unsuccessful consensus round and the node will start an additional
+round of consensus.
+Before starting the next round, the node waits for `timeout_precommit` time.
+This gives the node a chance to wait for additional precommits and to possibly
+observe +2/3 precommits for a block, which would allow the node to commit that
+block in the current round.
+
+Setting `timeout_precommit` to `0s` means that the validator will not wait
+for additional precommits (other than the mandatory +2/3) before moving to the
+next round.
+This has important liveness implications and should be avoided.
+
+### consensus.timeout_precommit_delta
+How much the timeout_precommit increases with each round.
+```toml
+timeout_precommit_delta = "500ms"
+```
+
+| Value type          | string (duration) |
+|:--------------------|:------------------|
+| **Possible values** | &gt;= `"0ms"`     |
+
+Consensus timeouts are adaptive.
+This means that when a round of consensus fails to commit a block, the next
+round of consensus will adopt increased timeout durations.
+Timeouts increase linearly over rounds, so that the `timeout_precommit` adopted
+in round `r` is `timeout_precommit + r * timeout_precommit_delta`.
 
 ### consensus.timeout_commit
 
@@ -1719,6 +1766,21 @@ But it may have implications in the way the application rewards validators.
 
 Setting `timeout_commit` to `0s` means that the node will start the next height
 as soon as it gathers all the mandatory +2/3 precommits for a block.
+
+### consensus.skip_timeout_commit
+
+Start the next height as soon as the node gathers all the mandatory +2/3 precommits for a block.
+
+```toml
+skip_timeout_commit = false
+```
+
+| Value type          | boolean |
+|:--------------------|:--------|
+| **Possible values** | `false` |
+|                     | `true`  |
+
+Deprecated: use `timeout_commit = "0s"` instead.
 
 ### consensus.double_sign_check_height
 
@@ -2006,18 +2068,6 @@ initial_block_results_retain_height = 0
 |:--------------------|:--------|
 | **Possible values** | &gt;= 0 |
 
-### storage.pruning.data_companion.genesis_hash
-Hash of the Genesis file, passed to CometBFT via the command line.
-```toml
-genesis_hash = ""
-```
-
-| Value type          | string             |
-|:--------------------|:-------------------|
-| **Possible values** | hex-encoded number |
-|                     | `""`               |
-
-If this hash mismatches the hash that CometBFT computes on the genesis file, the node is not able to boot.
 
 ## Transaction indexer
 Transaction indexer settings.
@@ -2057,6 +2107,18 @@ psql-conn = ""
 |:--------------------|:-------------------------------------------------------------|
 | **Possible values** | `"postgresql://<user>:<password>@<host>:<port>/<db>?<opts>"` |
 |                     | `""`                                                         |
+
+### tx_index.table_*
+Table names used by the PostgreSQL-backed indexer.
+
+This setting is optional and only applies when `indexer`  is set to `psql`.
+
+| Field         | default value               |
+|:--------------------|:---------------------|
+| `"table_blocks"` | `"blocks"`     |
+| `"table_tx_results"` | `"tx_results"` |
+| `"table_events"`    | `"events"`     |
+| `"table_attributes"` | `"table_attributes"` |
 
 ## Prometheus Instrumentation
 An extensive amount of Prometheus metrics are built into CometBFT.

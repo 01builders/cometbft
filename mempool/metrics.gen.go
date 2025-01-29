@@ -3,8 +3,8 @@
 package mempool
 
 import (
-	"github.com/go-kit/kit/metrics/discard"
-	prometheus "github.com/go-kit/kit/metrics/prometheus"
+	"github.com/cometbft/cometbft/libs/metrics/discard"
+	prometheus "github.com/cometbft/cometbft/libs/metrics/prometheus"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 )
 
@@ -46,6 +46,12 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "rejected_txs",
 			Help:      "Number of rejected transactions.",
 		}, labels).With(labelsAndValues...),
+		EvictedTxs: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "evicted_txs",
+			Help:      "Number of evicted transactions.",
+		}, labels).With(labelsAndValues...),
 		RecheckTimes: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: MetricsSubsystem,
@@ -74,6 +80,7 @@ func NopMetrics() *Metrics {
 		TxSizeBytes:               discard.NewHistogram(),
 		FailedTxs:                 discard.NewCounter(),
 		RejectedTxs:               discard.NewCounter(),
+		EvictedTxs:                discard.NewCounter(),
 		RecheckTimes:              discard.NewCounter(),
 		AlreadyReceivedTxs:        discard.NewCounter(),
 		ActiveOutboundConnections: discard.NewGauge(),

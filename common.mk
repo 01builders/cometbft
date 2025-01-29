@@ -31,14 +31,19 @@ endif
 
 # handle cleveldb
 ifeq (cleveldb,$(findstring cleveldb,$(COMETBFT_BUILD_OPTIONS)))
-  CGO_ENABLED=1
-  BUILD_TAGS += cleveldb
-endif
+   CGO_ENABLED=1
+   BUILD_TAGS += cleveldb
+ endif
 
 # handle badgerdb
 ifeq (badgerdb,$(findstring badgerdb,$(COMETBFT_BUILD_OPTIONS)))
   BUILD_TAGS += badgerdb
 endif
+
+# handle boltdb
+ ifeq (boltdb,$(findstring boltdb,$(COMETBFT_BUILD_OPTIONS)))
+   BUILD_TAGS += boltdb
+ endif
 
 # handle rocksdb
 ifeq (rocksdb,$(findstring rocksdb,$(COMETBFT_BUILD_OPTIONS)))
@@ -46,18 +51,14 @@ ifeq (rocksdb,$(findstring rocksdb,$(COMETBFT_BUILD_OPTIONS)))
   BUILD_TAGS += rocksdb
 endif
 
-# handle boltdb
-ifeq (boltdb,$(findstring boltdb,$(COMETBFT_BUILD_OPTIONS)))
-  BUILD_TAGS += boltdb
-endif
-
-# handle pebbledb
-ifeq (pebbledb,$(findstring pebbledb,$(COMETBFT_BUILD_OPTIONS)))
-  BUILD_TAGS += pebbledb
-endif
-
 # handle bls12381
 ifeq (bls12381,$(findstring bls12381,$(COMETBFT_BUILD_OPTIONS)))
   CGO_ENABLED=1
   BUILD_TAGS += bls12381
+endif
+
+# handle nodebug
+ifeq (nodebug,$(findstring nodebug,$(COMETBFT_BUILD_OPTIONS)))
+  CGO_ENABLED=1
+  BUILD_TAGS += nodebug
 endif
