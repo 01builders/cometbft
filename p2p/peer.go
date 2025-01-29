@@ -19,7 +19,9 @@ import (
 
 //go:generate ../scripts/mockery_generate.sh Peer
 
-const metricsTickerDuration = 10 * time.Second
+// Same as the default Prometheus scrape interval in order to not lose
+// granularity.
+const metricsTickerDuration = 1 * time.Second
 
 // Peer is an interface representing a peer connected on a reactor.
 type Peer interface {
@@ -124,12 +126,13 @@ type peer struct {
 	// User data
 	Data *cmap.CMap
 
-	metrics     *Metrics
-	mlc         *metricsLabelCache
-	traceClient trace.Tracer
+	metrics        *Metrics
+	pendingMetrics *peerPendingMetricsCache
 
 	// When removal of a peer fails, we set this flag
 	removalAttemptFailed bool
+
+	traceClient trace.Tracer
 }
 
 type PeerOption func(*peer)
@@ -148,16 +151,15 @@ func newPeer(
 	msgTypeByChID map[byte]proto.Message,
 	chDescs []*cmtconn.ChannelDescriptor,
 	onPeerError func(Peer, any),
-	mlc *metricsLabelCache,
 	options ...PeerOption,
 ) *peer {
 	p := &peer{
-		peerConn: pc,
-		nodeInfo: nodeInfo,
-		channels: nodeInfo.(DefaultNodeInfo).Channels,
-		Data:     cmap.NewCMap(),
-		metrics:  NopMetrics(),
-		mlc:      mlc,
+		peerConn:       pc,
+		nodeInfo:       nodeInfo,
+		channels:       nodeInfo.(DefaultNodeInfo).Channels,
+		Data:           cmap.NewCMap(),
+		metrics:        NopMetrics(),
+		pendingMetrics: newPeerPendingMetricsCache(),
 	}
 
 	p.mconn = createMConnection(
@@ -277,16 +279,7 @@ func (p *peer) Status() cmtconn.ConnectionStatus {
 //
 // thread safe.
 func (p *peer) Send(e Envelope) bool {
-	res := p.send(e.ChannelID, e.Message, p.mconn.Send)
-	if res {
-		labels := []string{
-			"message_type", p.mlc.ValueToMetricLabel(e.Message),
-			"chID", fmt.Sprintf("%#x", e.ChannelID),
-			"peer_id", string(p.ID()),
-		}
-		p.metrics.MessageSendBytesTotal.With(labels...).Add(float64(proto.Size(e.Message)))
-	}
-	return res
+	return p.send(e.ChannelID, e.Message, p.mconn.Send)
 }
 
 // TrySend msg bytes to the channel identified by chID byte. Immediately returns
@@ -294,16 +287,7 @@ func (p *peer) Send(e Envelope) bool {
 //
 // thread safe.
 func (p *peer) TrySend(e Envelope) bool {
-	res := p.send(e.ChannelID, e.Message, p.mconn.TrySend)
-	if res {
-		labels := []string{
-			"message_type", p.mlc.ValueToMetricLabel(e.Message),
-			"chID", fmt.Sprintf("%#x", e.ChannelID),
-			"peer_id", string(p.ID()),
-		}
-		p.metrics.MessageSendBytesTotal.With(labels...).Add(float64(proto.Size(e.Message)))
-	}
-	return res
+	return p.send(e.ChannelID, e.Message, p.mconn.TrySend)
 }
 
 func (p *peer) send(chID byte, msg proto.Message, sendFunc func(byte, []byte) bool) bool {
@@ -312,7 +296,7 @@ func (p *peer) send(chID byte, msg proto.Message, sendFunc func(byte, []byte) bo
 	} else if !p.hasChannel(chID) {
 		return false
 	}
-	metricLabelValue := p.mlc.ValueToMetricLabel(msg)
+	msgType := getMsgType(msg)
 	if w, ok := msg.(types.Wrapper); ok {
 		msg = w.Wrap()
 	}
@@ -323,12 +307,7 @@ func (p *peer) send(chID byte, msg proto.Message, sendFunc func(byte, []byte) bo
 	}
 	res := sendFunc(chID, msgBytes)
 	if res {
-		p.metrics.PeerSendBytesTotal.
-			With("peer_id", string(p.ID()), "chID", p.mlc.ChIDToMetricLabel(chID)).
-			Add(float64(len(msgBytes)))
-		p.metrics.MessageSendBytesTotal.
-			With("message_type", metricLabelValue).
-			Add(float64(len(msgBytes)))
+		p.pendingMetrics.AddPendingSendBytes(msgType, len(msgBytes))
 	}
 	return res
 }
@@ -355,15 +334,6 @@ func (p *peer) hasChannel(chID byte) bool {
 			return true
 		}
 	}
-	// NOTE: probably will want to remove this
-	// but could be helpful while the feature is new
-	p.Logger.Debug(
-		"Unknown channel for peer",
-		"channel",
-		chID,
-		"channels",
-		p.channels,
-	)
 	return false
 }
 
@@ -427,6 +397,26 @@ func (p *peer) metricsReporter() {
 
 			p.metrics.PeerPendingSendBytes.With("peer_id", string(p.ID())).Set(sendQueueSize)
 			schema.WritePendingBytes(p.traceClient, string(p.ID()), queues)
+			// Report per peer, per message total bytes, since the last interval
+			func() {
+				p.pendingMetrics.mtx.Lock()
+				defer p.pendingMetrics.mtx.Unlock()
+				for _, entry := range p.pendingMetrics.perMessageCache {
+					if entry.pendingSendBytes > 0 {
+						p.metrics.MessageSendBytesTotal.
+							With("message_type", entry.label).
+							Add(float64(entry.pendingSendBytes))
+						entry.pendingSendBytes = 0
+					}
+					if entry.pendingRecvBytes > 0 {
+						p.metrics.MessageReceiveBytesTotal.
+							With("message_type", entry.label).
+							Add(float64(entry.pendingRecvBytes))
+						entry.pendingRecvBytes = 0
+					}
+				}
+			}()
+
 		case <-p.Quit():
 			return
 		}
@@ -464,13 +454,8 @@ func createMConnection(
 				panic(fmt.Sprintf("unwrapping message: %v", err))
 			}
 		}
-		p.metrics.PeerReceiveBytesTotal.
-			With("peer_id", string(p.ID()), "chID", p.mlc.ChIDToMetricLabel(chID)).
-			Add(float64(len(msgBytes)))
-		p.metrics.MessageReceiveBytesTotal.
-			With("message_type", p.mlc.ValueToMetricLabel(msg)).
-			Add(float64(len(msgBytes)))
 		schema.WriteReceivedBytes(p.traceClient, string(p.ID()), chID, len(msgBytes))
+		p.pendingMetrics.AddPendingRecvBytes(getMsgType(msg), len(msgBytes))
 		reactor.Receive(Envelope{
 			ChannelID: chID,
 			Src:       p,

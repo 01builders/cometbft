@@ -1,5 +1,5 @@
 ---
-order: 3
+order: 1
 ---
 
 # Install CometBFT
@@ -81,6 +81,8 @@ make install
 ```
 
 ## Compile with CLevelDB support
+
+**NOTE**: `cleveldb` is deprecated and will be removed in a future release.
 
 Install [LevelDB](https://github.com/google/leveldb) (minimum version is 1.7).
 

@@ -3,6 +3,7 @@ package consensus
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -27,7 +28,7 @@ import (
 	cmtrand "github.com/cometbft/cometbft/internal/rand"
 	"github.com/cometbft/cometbft/internal/test"
 	"github.com/cometbft/cometbft/libs/log"
-	"github.com/cometbft/cometbft/mempool"
+	mempl "github.com/cometbft/cometbft/mempool"
 	"github.com/cometbft/cometbft/privval"
 	"github.com/cometbft/cometbft/proxy"
 	sm "github.com/cometbft/cometbft/state"
@@ -74,7 +75,8 @@ func startNewStateAndWaitForBlock(
 	t.Helper()
 	logger := log.TestingLogger()
 	state, _ := stateStore.LoadFromDBOrGenesisFile(consensusReplayConfig.GenesisFile())
-	privValidator := loadPrivValidator(consensusReplayConfig)
+	privValidator, err := loadPrivValidator(consensusReplayConfig)
+	require.NoError(t, err)
 	cs := newStateWithConfigAndBlockStore(
 		consensusReplayConfig,
 		state,
@@ -87,7 +89,7 @@ func startNewStateAndWaitForBlock(
 	bytes, _ := os.ReadFile(cs.config.WalFile())
 	t.Logf("====== WAL: \n\r%X\n", bytes)
 
-	err := cs.Start()
+	err = cs.Start()
 	require.NoError(t, err)
 	defer func() {
 		if err := cs.Stop(); err != nil {
@@ -117,7 +119,7 @@ func sendTxs(ctx context.Context, cs *State) {
 			return
 		default:
 			tx := kvstore.NewTxFromID(i)
-			reqRes, err := assertMempool(cs.txNotifier).CheckTx(tx)
+			reqRes, err := assertMempool(cs.txNotifier).CheckTx(tx, "")
 			if err != nil {
 				panic(err)
 			}
@@ -152,7 +154,6 @@ func TestWALCrash(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		tc := tc
 		consensusReplayConfig := ResetConfig(fmt.Sprintf("%s_%d", t.Name(), i))
 		t.Run(tc.name, func(t *testing.T) {
 			crashWALandCheckLiveness(t, consensusReplayConfig, tc.initFn, tc.heightToStop)
@@ -181,7 +182,8 @@ LOOP:
 		})
 		state, err := sm.MakeGenesisStateFromFile(consensusReplayConfig.GenesisFile())
 		require.NoError(t, err)
-		privValidator := loadPrivValidator(consensusReplayConfig)
+		privValidator, err := loadPrivValidator(consensusReplayConfig)
+		require.NoError(t, err)
 		cs := newStateWithConfigAndBlockStore(
 			consensusReplayConfig,
 			state,
@@ -367,7 +369,7 @@ func setupChainWithChangingValidators(t *testing.T, name string, nBlocks int) (*
 	newValidatorPubKey1, err := css[nVals].privValidator.GetPubKey()
 	require.NoError(t, err)
 	newValidatorTx1 := updateValTx(newValidatorPubKey1, testMinPower)
-	_, err = assertMempool(css[0].txNotifier).CheckTx(newValidatorTx1)
+	_, err = assertMempool(css[0].txNotifier).CheckTx(newValidatorTx1, "")
 	require.NoError(t, err)
 
 	propBlock, propBlockParts, blockID := createProposalBlock(t, css[0]) // changeProposer(t, cs1, v2)
@@ -389,7 +391,7 @@ func setupChainWithChangingValidators(t *testing.T, name string, nBlocks int) (*
 	updateValidatorPubKey1, err := css[nVals].privValidator.GetPubKey()
 	require.NoError(t, err)
 	updateValidatorTx1 := updateValTx(updateValidatorPubKey1, 25)
-	_, err = assertMempool(css[0].txNotifier).CheckTx(updateValidatorTx1)
+	_, err = assertMempool(css[0].txNotifier).CheckTx(updateValidatorTx1, "")
 	require.NoError(t, err)
 
 	propBlock, propBlockParts, blockID = createProposalBlock(t, css[0]) // changeProposer(t, cs1, v2)
@@ -411,12 +413,12 @@ func setupChainWithChangingValidators(t *testing.T, name string, nBlocks int) (*
 	newValidatorPubKey2, err := css[nVals+1].privValidator.GetPubKey()
 	require.NoError(t, err)
 	newValidatorTx2 := updateValTx(newValidatorPubKey2, testMinPower)
-	_, err = assertMempool(css[0].txNotifier).CheckTx(newValidatorTx2)
+	_, err = assertMempool(css[0].txNotifier).CheckTx(newValidatorTx2, "")
 	require.NoError(t, err)
 	newValidatorPubKey3, err := css[nVals+2].privValidator.GetPubKey()
 	require.NoError(t, err)
 	newValidatorTx3 := updateValTx(newValidatorPubKey3, testMinPower)
-	_, err = assertMempool(css[0].txNotifier).CheckTx(newValidatorTx3)
+	_, err = assertMempool(css[0].txNotifier).CheckTx(newValidatorTx3, "")
 	require.NoError(t, err)
 
 	propBlock, propBlockParts, blockID = createProposalBlock(t, css[0]) // changeProposer(t, cs1, v2)
@@ -433,7 +435,7 @@ func setupChainWithChangingValidators(t *testing.T, name string, nBlocks int) (*
 			cssPubKey, err := css[cssIdx].privValidator.GetPubKey()
 			require.NoError(t, err)
 
-			if vsPubKey.Equals(cssPubKey) {
+			if vsPubKey.Type() == cssPubKey.Type() && bytes.Equal(vsPubKey.Bytes(), cssPubKey.Bytes()) {
 				return i
 			}
 		}
@@ -452,7 +454,7 @@ func setupChainWithChangingValidators(t *testing.T, name string, nBlocks int) (*
 	ensureNewProposal(proposalCh, height, round)
 
 	removeValidatorTx2 := updateValTx(newValidatorPubKey2, 0)
-	_, err = assertMempool(css[0].txNotifier).CheckTx(removeValidatorTx2)
+	_, err = assertMempool(css[0].txNotifier).CheckTx(removeValidatorTx2, "")
 	require.NoError(t, err)
 
 	rs = css[0].GetRoundState()
@@ -488,7 +490,7 @@ func setupChainWithChangingValidators(t *testing.T, name string, nBlocks int) (*
 	height++
 	incrementHeight(vss...)
 	removeValidatorTx3 := updateValTx(newValidatorPubKey3, 0)
-	_, err = assertMempool(css[0].txNotifier).CheckTx(removeValidatorTx3)
+	_, err = assertMempool(css[0].txNotifier).CheckTx(removeValidatorTx3, "")
 	require.NoError(t, err)
 
 	propBlock, propBlockParts, blockID = createProposalBlock(t, css[0]) // changeProposer(t, cs1, v2)
@@ -732,7 +734,7 @@ func testHandshakeReplay(t *testing.T, config *cfg.Config, nBlocks int, mode uin
 	}
 }
 
-func applyBlock(t *testing.T, stateStore sm.Store, mempool mempool.Mempool, evpool sm.EvidencePool, st sm.State, blk *types.Block, proxyApp proxy.AppConns, bs sm.BlockStore) sm.State {
+func applyBlock(t *testing.T, stateStore sm.Store, mempool mempl.Mempool, evpool sm.EvidencePool, st sm.State, blk *types.Block, proxyApp proxy.AppConns, bs sm.BlockStore) sm.State {
 	t.Helper()
 	testPartSize := types.BlockPartSizeBytes
 	blockExec := sm.NewBlockExecutor(stateStore, log.TestingLogger(), proxyApp.Consensus(), mempool, evpool, bs)
@@ -740,12 +742,12 @@ func applyBlock(t *testing.T, stateStore sm.Store, mempool mempool.Mempool, evpo
 	bps, err := blk.MakePartSet(testPartSize)
 	require.NoError(t, err)
 	blkID := types.BlockID{Hash: blk.Hash(), PartSetHeader: bps.Header()}
-	newState, err := blockExec.ApplyBlock(st, blkID, blk, nil)
+	newState, err := blockExec.ApplyBlock(st, blkID, blk, blk.Height, nil)
 	require.NoError(t, err)
 	return newState
 }
 
-func buildAppStateFromChain(t *testing.T, proxyApp proxy.AppConns, stateStore sm.Store, mempool mempool.Mempool, evpool sm.EvidencePool,
+func buildAppStateFromChain(t *testing.T, proxyApp proxy.AppConns, stateStore sm.Store, mempool mempl.Mempool, evpool sm.EvidencePool,
 	state sm.State, chain []*types.Block, nBlocks int, mode uint, bs sm.BlockStore,
 ) {
 	t.Helper()
@@ -794,7 +796,7 @@ func buildTMStateFromChain(
 	t *testing.T,
 	config *cfg.Config,
 	stateStore sm.Store,
-	mempool mempool.Mempool,
+	mempool mempl.Mempool,
 	evpool sm.EvidencePool,
 	state sm.State,
 	chain []*types.Block,
@@ -1006,7 +1008,7 @@ func makeBlockchainFromWAL(wal WAL) ([]*types.Block, []*types.ExtendedCommit, er
 	dec := NewWALDecoder(gr)
 	for {
 		msg, err := dec.Decode()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, nil, err

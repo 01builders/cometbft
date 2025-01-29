@@ -3,6 +3,7 @@ package docker
 import (
 	"bytes"
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"text/template"
@@ -11,6 +12,8 @@ import (
 	"github.com/cometbft/cometbft/test/e2e/pkg/exec"
 	"github.com/cometbft/cometbft/test/e2e/pkg/infra"
 )
+
+const DockerComposeFile = "compose.yaml"
 
 var _ infra.Provider = (*Provider)(nil)
 
@@ -27,18 +30,7 @@ func (p *Provider) Setup() error {
 		return err
 	}
 	//nolint: gosec // G306: Expect WriteFile permissions to be 0600 or less
-	err = os.WriteFile(filepath.Join(p.Testnet.Dir, "docker-compose.yml"), compose, 0o644)
-	if err != nil {
-		return err
-	}
-
-	// Generate file with table mapping IP addresses to geographical zone for latencies.
-	zonesTable, err := zonesTableBytes(p.Testnet.Nodes)
-	if err != nil {
-		return err
-	}
-	//nolint: gosec // G306: Expect WriteFile permissions to be 0600 or less
-	err = os.WriteFile(filepath.Join(p.Testnet.Dir, "zones.csv"), zonesTable, 0o644)
+	err = os.WriteFile(filepath.Join(p.Testnet.Dir, DockerComposeFile), compose, 0o644)
 	if err != nil {
 		return err
 	}
@@ -81,27 +73,15 @@ func (Provider) CheckUpgraded(ctx context.Context, node *e2e.Node) (string, bool
 	return name, upgraded, nil
 }
 
-func (p Provider) SetLatency(ctx context.Context, node *e2e.Node) error {
-	containerDir := "/scripts/"
-
-	// Copy zone file used by the script that sets latency.
-	zonesFile := filepath.Join(p.Testnet.Dir, "zones.csv")
-	if err := Exec(ctx, "cp", zonesFile, node.Name+":"+containerDir); err != nil {
-		return err
-	}
-
-	// Execute the latency setter script in the container.
-	return ExecVerbose(ctx, "exec", "--privileged", node.Name,
-		filepath.Join(containerDir, "latency-setter.py"), "set",
-		filepath.Join(containerDir, "zones.csv"),
-		filepath.Join(containerDir, "aws-latencies.csv"), "eth0")
+func (Provider) NodeIP(node *e2e.Node) net.IP {
+	return node.InternalIP
 }
 
 // dockerComposeBytes generates a Docker Compose config file for a testnet and returns the
 // file as bytes to be written out to disk.
 func dockerComposeBytes(testnet *e2e.Testnet) ([]byte, error) {
 	// Must use version 2 Docker Compose format, to support IPv6.
-	tmpl, err := template.New("docker-compose").Parse(`version: '2.4'
+	tmpl, err := template.New("docker-compose").Parse(`
 networks:
   {{ .Name }}:
     labels:
@@ -129,6 +109,8 @@ services:
     environment:
         - COMETBFT_CLOCK_SKEW={{ .ClockSkew }}
 {{- end }}
+    cap_add:
+      - NET_ADMIN
     init: true
     ports:
     - 26656
@@ -143,7 +125,6 @@ services:
     - 2346
     volumes:
     - ./{{ .Name }}:/cometbft
-    - ./{{ .Name }}:/tendermint
     networks:
       {{ $.Name }}:
         ipv{{ if $.IPv6 }}6{{ else }}4{{ end}}_address: {{ .InternalIP }}
@@ -161,6 +142,8 @@ services:
     environment:
         - COMETBFT_CLOCK_SKEW={{ .ClockSkew }}
 {{- end }}
+    cap_add:
+      - NET_ADMIN
     init: true
     ports:
     - 26656
@@ -175,7 +158,6 @@ services:
     - 2346
     volumes:
     - ./{{ .Name }}:/cometbft
-    - ./{{ .Name }}:/tendermint
     networks:
       {{ $.Name }}:
         ipv{{ if $.IPv6 }}6{{ else }}4{{ end}}_address: {{ .InternalIP }}
@@ -193,42 +175,24 @@ services:
 	return buf.Bytes(), nil
 }
 
-func zonesTableBytes(nodes []*e2e.Node) ([]byte, error) {
-	tmpl, err := template.New("zones").Parse(`Node,IP,Zone
-{{- range . }}
-{{- if .Zone }}
-{{ .Name }},{{ .InternalIP }},{{ .Zone }}
-{{- end }}
-{{- end }}`)
-	if err != nil {
-		return nil, err
-	}
-	var buf bytes.Buffer
-	err = tmpl.Execute(&buf, nodes)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
 // ExecCompose runs a Docker Compose command for a testnet.
 func ExecCompose(ctx context.Context, dir string, args ...string) error {
 	return exec.Command(ctx, append(
-		[]string{"docker-compose", "-f", filepath.Join(dir, "docker-compose.yml")},
+		[]string{"docker", "compose", "-f", filepath.Join(dir, DockerComposeFile)},
 		args...)...)
 }
 
 // ExecCompose runs a Docker Compose command for a testnet and returns the command's output.
 func ExecComposeOutput(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	return exec.CommandOutput(ctx, append(
-		[]string{"docker-compose", "-f", filepath.Join(dir, "docker-compose.yml")},
+		[]string{"docker", "compose", "-f", filepath.Join(dir, DockerComposeFile)},
 		args...)...)
 }
 
 // ExecComposeVerbose runs a Docker Compose command for a testnet and displays its output.
 func ExecComposeVerbose(ctx context.Context, dir string, args ...string) error {
 	return exec.CommandVerbose(ctx, append(
-		[]string{"docker-compose", "-f", filepath.Join(dir, "docker-compose.yml")},
+		[]string{"docker", "compose", "-f", filepath.Join(dir, DockerComposeFile)},
 		args...)...)
 }
 

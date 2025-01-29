@@ -24,9 +24,12 @@ func (env *Environment) BroadcastTxAsync(_ *rpctypes.Context, tx types.Tx) (*cty
 	if env.MempoolReactor.WaitSync() {
 		return nil, ErrEndpointClosedCatchingUp
 	}
-	_, err := env.Mempool.CheckTx(tx)
+	reqRes, err := env.Mempool.CheckTx(tx, "")
 	if err != nil {
 		return nil, err
+	}
+	if reqRes.Error() != nil {
+		return nil, reqRes.Error()
 	}
 	return &ctypes.ResultBroadcastTx{Hash: tx.Hash()}, nil
 }
@@ -40,19 +43,31 @@ func (env *Environment) BroadcastTxSync(ctx *rpctypes.Context, tx types.Tx) (*ct
 	}
 
 	resCh := make(chan *abci.CheckTxResponse, 1)
-	reqRes, err := env.Mempool.CheckTx(tx)
+	resErrCh := make(chan error, 1)
+	reqRes, err := env.Mempool.CheckTx(tx, "")
 	if err != nil {
 		return nil, err
 	}
-	reqRes.SetCallback(func(_ *abci.Response) {
+	go func() {
+		// Wait for a response. The ABCI client guarantees that it will eventually call
+		// reqRes.Done(), even in the case of error.
+		reqRes.Wait()
 		select {
 		case <-ctx.Context().Done():
-		case resCh <- reqRes.Response.GetCheckTx():
+		default:
+			if reqRes.Error() != nil {
+				resErrCh <- reqRes.Error()
+			} else {
+				resCh <- reqRes.Response.GetCheckTx()
+			}
 		}
-	})
+	}()
+
 	select {
 	case <-ctx.Context().Done():
 		return nil, fmt.Errorf("broadcast confirmation not received: %w", ctx.Context().Err())
+	case err := <-resErrCh:
+		return nil, fmt.Errorf("broadcast error on transaction validation: %w", err)
 	case res := <-resCh:
 		return &ctypes.ResultBroadcastTx{
 			Code:      res.Code,
@@ -97,20 +112,32 @@ func (env *Environment) BroadcastTxCommit(ctx *rpctypes.Context, tx types.Tx) (*
 
 	// Broadcast tx and wait for CheckTx result
 	checkTxResCh := make(chan *abci.CheckTxResponse, 1)
-	reqRes, err := env.Mempool.CheckTx(tx)
+	resErrCh := make(chan error, 1)
+	reqRes, err := env.Mempool.CheckTx(tx, "")
 	if err != nil {
 		env.Logger.Error("Error on broadcastTxCommit", "err", err)
 		return nil, fmt.Errorf("error on broadcastTxCommit: %v", err)
 	}
-	reqRes.SetCallback(func(_ *abci.Response) {
+	go func() {
+		// Wait for a response. The ABCI client guarantees that it will eventually call
+		// reqRes.Done(), even in the case of error.
+		reqRes.Wait()
 		select {
 		case <-ctx.Context().Done():
-		case checkTxResCh <- reqRes.Response.GetCheckTx():
+		default:
+			if reqRes.Error() != nil {
+				resErrCh <- reqRes.Error()
+			} else {
+				checkTxResCh <- reqRes.Response.GetCheckTx()
+			}
 		}
-	})
+	}()
+
 	select {
 	case <-ctx.Context().Done():
 		return nil, fmt.Errorf("broadcast confirmation not received: %w", ctx.Context().Err())
+	case err := <-resErrCh:
+		return nil, fmt.Errorf("broadcast error on transaction validation: %w", err)
 	case checkTxRes := <-checkTxResCh:
 		if checkTxRes.Code != abci.CodeTypeOK {
 			return &ctypes.ResultBroadcastTxCommit{

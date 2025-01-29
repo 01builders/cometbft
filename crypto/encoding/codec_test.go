@@ -6,10 +6,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/bls12381"
 	"github.com/cometbft/cometbft/crypto/ed25519"
 	"github.com/cometbft/cometbft/crypto/secp256k1"
 )
+
+type unsupportedPubKey struct{}
+
+func (unsupportedPubKey) Address() crypto.Address             { return nil }
+func (unsupportedPubKey) Bytes() []byte                       { return nil }
+func (unsupportedPubKey) VerifySignature([]byte, []byte) bool { return false }
+func (unsupportedPubKey) Type() string                        { return "unsupportedPubKey" }
 
 func TestPubKeyToFromProto(t *testing.T) {
 	// ed25519
@@ -34,6 +42,7 @@ func TestPubKeyToFromProto(t *testing.T) {
 	if bls12381.Enabled {
 		privKey, err := bls12381.GenPrivKey()
 		require.NoError(t, err)
+		defer privKey.Zeroize()
 		pk = privKey.PubKey()
 		proto, err := PubKeyToProto(pk)
 		require.NoError(t, err)
@@ -45,6 +54,11 @@ func TestPubKeyToFromProto(t *testing.T) {
 		_, err = PubKeyToProto(bls12381.PubKey{})
 		assert.Error(t, err)
 	}
+
+	// unsupported key type
+	_, err = PubKeyToProto(unsupportedPubKey{})
+	require.Error(t, err)
+	assert.Equal(t, ErrUnsupportedKey{KeyType: unsupportedPubKey{}.Type()}, err)
 }
 
 func TestPubKeyFromTypeAndBytes(t *testing.T) {

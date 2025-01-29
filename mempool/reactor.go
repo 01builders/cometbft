@@ -9,13 +9,10 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	abci "github.com/cometbft/cometbft/abci/types"
 	protomem "github.com/cometbft/cometbft/api/cometbft/mempool/v1"
 	cfg "github.com/cometbft/cometbft/config"
-	"github.com/cometbft/cometbft/internal/clist"
 	"github.com/cometbft/cometbft/internal/trace"
 	"github.com/cometbft/cometbft/libs/log"
-	cmtsync "github.com/cometbft/cometbft/libs/sync"
 	"github.com/cometbft/cometbft/p2p"
 	"github.com/cometbft/cometbft/types"
 )
@@ -31,13 +28,6 @@ type Reactor struct {
 	waitSync   atomic.Bool
 	waitSyncCh chan struct{} // for signaling when to start receiving and sending txs
 
-	// `txSenders` maps every received transaction to the set of peer IDs that
-	// have sent the transaction to this node. Sender IDs are used during
-	// transaction propagation to avoid sending a transaction to a peer that
-	// already has it.
-	txSenders    map[types.TxKey]map[p2p.ID]bool
-	txSendersMtx cmtsync.Mutex
-
 	// Semaphores to keep track of how many connections to peers are active for broadcasting
 	// transactions. Each semaphore has a capacity that puts an upper bound on the number of
 	// connections for different groups of peers.
@@ -52,7 +42,6 @@ func NewReactor(config *cfg.MempoolConfig, mempool *CListMempool, waitSync bool,
 		config:      config,
 		mempool:     mempool,
 		waitSync:    atomic.Bool{},
-		txSenders:   make(map[types.TxKey]map[p2p.ID]bool),
 		traceClient: traceClient,
 	}
 	memR.BaseReactor = *p2p.NewBaseReactor("Mempool", memR)
@@ -60,7 +49,6 @@ func NewReactor(config *cfg.MempoolConfig, mempool *CListMempool, waitSync bool,
 		memR.waitSync.Store(true)
 		memR.waitSyncCh = make(chan struct{})
 	}
-	memR.mempool.SetTxRemovedCallback(func(txKey types.TxKey) { memR.removeSenders(txKey) })
 	memR.activePersistentPeersSemaphore = semaphore.NewWeighted(int64(memR.config.ExperimentalMaxGossipConnectionsToPersistentPeers))
 	memR.activeNonPersistentPeersSemaphore = semaphore.NewWeighted(int64(memR.config.ExperimentalMaxGossipConnectionsToNonPersistentPeers))
 
@@ -160,34 +148,27 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 
 		protoTxs := msg.GetTxs()
 		if len(protoTxs) == 0 {
-			memR.Logger.Error("received empty txs from peer", "src", e.Src)
+			memR.Logger.Error("Received empty Txs message from peer", "src", e.Src)
 			return
 		}
 
 		for _, txBytes := range protoTxs {
 			tx := types.Tx(txBytes)
-			reqRes, err := memR.mempool.CheckTx(tx)
-			switch {
-			case errors.Is(err, ErrTxInCache):
-				memR.Logger.Debug("Tx already exists in cache", "tx", tx.Hash())
-			case err != nil:
-				memR.Logger.Info("Could not check tx", "tx", tx.Hash(), "err", err)
-			default:
-				// Record the sender only when the transaction is valid and, as
-				// a consequence, added to the mempool. Senders are stored until
-				// the transaction is removed from the mempool. Note that it's
-				// possible a tx is still in the cache but no longer in the
-				// mempool. For example, after committing a block, txs are
-				// removed from mempool but not the cache.
-				reqRes.SetCallback(func(res *abci.Response) {
-					if res.GetCheckTx().Code == abci.CodeTypeOK {
-						memR.addSender(tx.Key(), e.Src.ID())
-					}
-				})
+			_, err := memR.mempool.CheckTx(tx, e.Src.ID())
+			if err != nil {
+				switch {
+				case errors.Is(err, ErrTxInCache):
+					memR.Logger.Debug("Tx already exists in cache", "tx", tx.Hash())
+				case errors.As(err, &ErrMempoolIsFull{}):
+					// using debug level to avoid flooding when traffic is high
+					memR.Logger.Debug(err.Error())
+				default:
+					memR.Logger.Info("Could not check tx", "tx", tx.Hash(), "err", err)
+				}
 			}
 		}
 	default:
-		memR.Logger.Error("unknown message type", "src", e.Src, "chId", e.ChannelID, "msg", e.Message)
+		memR.Logger.Error("Unknown message type", "src", e.Src, "chId", e.ChannelID, "msg", e.Message)
 		memR.Switch.StopPeerForError(e.Src, fmt.Errorf("mempool cannot handle message of type: %T", e.Message))
 		return
 	}
@@ -196,7 +177,7 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 }
 
 func (memR *Reactor) EnableInOutTxs() {
-	memR.Logger.Info("enabling inbound and outbound transactions")
+	memR.Logger.Info("Enabling inbound and outbound transactions")
 	if !memR.waitSync.CompareAndSwap(true, false) {
 		return
 	}
@@ -218,8 +199,6 @@ type PeerState interface {
 
 // Send new mempool txs to peer.
 func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
-	var next *clist.CElement
-
 	// If the node is catching up, don't start this routine immediately.
 	if memR.WaitSync() {
 		select {
@@ -230,37 +209,27 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-peer.Quit():
+			cancel()
+		case <-memR.Quit():
+			cancel()
+		}
+	}()
+
+	iter := memR.mempool.NewIterator(ctx)
 	for {
 		// In case of both next.NextWaitChan() and peer.Quit() are variable at the same time
 		if !memR.IsRunning() || !peer.IsRunning() {
 			return
 		}
 
-		// This happens because the CElement we were looking at got garbage
-		// collected (removed). That is, .NextWait() returned nil. Go ahead and
-		// start from the beginning.
-		if next == nil {
-			select {
-			case <-memR.mempool.TxsWaitChan(): // Wait until a tx is available
-				if next = memR.mempool.TxsFront(); next == nil {
-					continue
-				}
-			case <-peer.Quit():
-				return
-			case <-memR.Quit():
-				return
-			}
-		}
+		entry := <-iter.WaitNextCh()
 
-		// Make sure the peer is up to date.
-		peerState, ok := peer.Get(types.PeerStateKey).(PeerState)
-		if !ok {
-			// Peer does not have a state yet. We set it in the consensus reactor, but
-			// when we add peer in Switch, the order we call reactors#AddPeer is
-			// different every time due to us using a map. Sometimes other reactors
-			// will be initialized before the consensus reactor. We should wait a few
-			// milliseconds and retry.
-			time.Sleep(PeerCatchupSleepIntervalMS * time.Millisecond)
+		// If the entry we were looking at got garbage collected (removed), try again.
+		if entry == nil {
 			continue
 		}
 
@@ -269,63 +238,64 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 		// reduces the mempool size and the recheck-tx rate of the receiving
 		// node. See [RFC 103] for an analysis on this optimization.
 		//
-		// [RFC 103]: https://github.com/cometbft/cometbft/pull/735
-		memTx := next.Value.(*mempoolTx)
-		if peerState.GetHeight() < memTx.Height()-1 {
-			time.Sleep(PeerCatchupSleepIntervalMS * time.Millisecond)
-			continue
+		// [RFC 103]: https://github.com/CometBFT/cometbft/blob/main/docs/references/rfc/rfc-103-incoming-txs-when-catching-up.md
+		for {
+			// Make sure the peer's state is up to date. The peer may not have a
+			// state yet. We set it in the consensus reactor, but when we add
+			// peer in Switch, the order we call reactors#AddPeer is different
+			// every time due to us using a map. Sometimes other reactors will
+			// be initialized before the consensus reactor. We should wait a few
+			// milliseconds and retry.
+			peerState, ok := peer.Get(types.PeerStateKey).(PeerState)
+			if ok && peerState.GetHeight()+1 >= entry.Height() {
+				break
+			}
+			select {
+			case <-time.After(PeerCatchupSleepIntervalMS * time.Millisecond):
+			case <-peer.Quit():
+				return
+			case <-memR.Quit():
+				return
+			}
 		}
 
 		// NOTE: Transaction batching was disabled due to
 		// https://github.com/tendermint/tendermint/issues/5796
 
-		if !memR.isSender(memTx.tx.Key(), peer.ID()) {
+		// We are paying the cost of computing the transaction hash in
+		// any case, even when logger level > debug. So it only once.
+		// See: https://github.com/cometbft/cometbft/issues/4167
+		txHash := entry.Tx().Hash()
+
+		// Do not send this transaction if we receive it from peer.
+		if entry.IsSender(peer.ID()) {
+			memR.Logger.Debug("Skipping transaction, peer is sender",
+				"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
+			continue
+		}
+
+		for {
+			memR.Logger.Debug("Sending transaction to peer",
+				"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
+
 			success := peer.Send(p2p.Envelope{
 				ChannelID: MempoolChannel,
-				Message:   &protomem.Txs{Txs: [][]byte{memTx.tx}},
+				Message:   &protomem.Txs{Txs: [][]byte{entry.Tx()}},
 			})
-			if !success {
-				time.Sleep(PeerCatchupSleepIntervalMS * time.Millisecond)
-				continue
+			if success {
+				break
+			}
+
+			memR.Logger.Debug("Failed sending transaction to peer",
+				"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
+
+			select {
+			case <-time.After(PeerCatchupSleepIntervalMS * time.Millisecond):
+			case <-peer.Quit():
+				return
+			case <-memR.Quit():
+				return
 			}
 		}
-
-		select {
-		case <-next.NextWaitChan():
-			// see the start of the for loop for nil check
-			next = next.Next()
-		case <-peer.Quit():
-			return
-		case <-memR.Quit():
-			return
-		}
-	}
-}
-
-func (memR *Reactor) isSender(txKey types.TxKey, peerID p2p.ID) bool {
-	memR.txSendersMtx.Lock()
-	defer memR.txSendersMtx.Unlock()
-
-	sendersSet, ok := memR.txSenders[txKey]
-	return ok && sendersSet[peerID]
-}
-
-func (memR *Reactor) addSender(txKey types.TxKey, senderID p2p.ID) {
-	memR.txSendersMtx.Lock()
-	defer memR.txSendersMtx.Unlock()
-
-	if sendersSet, ok := memR.txSenders[txKey]; ok {
-		sendersSet[senderID] = true
-		return
-	}
-	memR.txSenders[txKey] = map[p2p.ID]bool{senderID: true}
-}
-
-func (memR *Reactor) removeSenders(txKey types.TxKey) {
-	memR.txSendersMtx.Lock()
-	defer memR.txSendersMtx.Unlock()
-
-	if memR.txSenders != nil {
-		delete(memR.txSenders, txKey)
 	}
 }

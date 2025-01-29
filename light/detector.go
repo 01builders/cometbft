@@ -83,6 +83,7 @@ func (c *Client) detectDivergence(ctx context.Context, primaryTrace []*types.Lig
 		case ErrProposerPrioritiesDiverge:
 			c.logger.Info("witness reported validator set with different proposer priorities",
 				"witness", c.witnesses[e.WitnessIndex], "err", err)
+			return e
 		default:
 			// Benign errors which can be ignored unless there was a context
 			// canceled
@@ -111,7 +112,7 @@ func (c *Client) detectDivergence(ctx context.Context, primaryTrace []*types.Lig
 // compareNewLightBlockWithWitness takes the verified header from the primary and compares it with a
 // header from a specified witness. The function can return one of three errors:
 //
-// 1: errConflictingHeaders -> there may have been an attack on this light client
+// 1: ErrConflictingHeaders -> there may have been an attack on this light client
 // 2: errBadWitness -> the witness has either not responded, doesn't have the header or has given us an invalid one
 //
 //	Note: In the case of an invalid header we remove the witness
@@ -120,8 +121,8 @@ func (c *Client) detectDivergence(ctx context.Context, primaryTrace []*types.Lig
 func (c *Client) compareNewLightBlockWithWitness(ctx context.Context, errc chan error, l *types.LightBlock,
 	witness provider.Provider, witnessIndex int,
 ) {
-
 	h := l.SignedHeader
+
 	lightBlock, err := witness.LightBlock(ctx, h.Height)
 	switch err {
 	// no error means we move on to checking the hash of the two headers
@@ -256,7 +257,7 @@ func (c *Client) handleConflictingHeaders(
 	if primaryBlock.Commit.Round != witnessTrace[len(witnessTrace)-1].Commit.Round {
 		c.logger.Info("The light client has detected, and prevented, an attempted amnesia attack." +
 			" We think this attack is pretty unlikely, so if you see it, that's interesting to us." +
-			" Can you let us know by opening an issue through https://github.com/tendermint/tendermint/issues/new?")
+			" Can you let us know by opening an issue through https://github.com/cometbft/cometbft/issues/new?")
 	}
 
 	// This may not be valid because the witness itself is at fault. So now we reverse it, examining the

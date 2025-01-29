@@ -54,6 +54,7 @@ func (env *Environment) Tx(_ *rpctypes.Context, hash []byte, prove bool) (*ctype
 		if err != nil {
 			return nil, err
 		}
+
 	}
 
 	return &ctypes.ResultTx{

@@ -12,6 +12,7 @@ import (
 	"github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/tmhash"
 	cmtrand "github.com/cometbft/cometbft/internal/rand"
+	cmtjson "github.com/cometbft/cometbft/libs/json"
 	cmttime "github.com/cometbft/cometbft/types/time"
 	"github.com/cometbft/cometbft/version"
 )
@@ -79,7 +80,6 @@ func TestDuplicateVoteEvidenceValidation(t *testing.T) {
 		}, true},
 	}
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			vote1 := MakeVoteNoError(t, val, chainID, math.MaxInt32, math.MaxInt64, math.MaxInt32, 0x02, blockID, defaultVoteTime)
 			vote2 := MakeVoteNoError(t, val, chainID, math.MaxInt32, math.MaxInt64, math.MaxInt32, 0x02, blockID2, defaultVoteTime)
@@ -204,7 +204,6 @@ func TestLightClientAttackEvidenceValidation(t *testing.T) {
 		}, true},
 	}
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			lcae := &LightClientAttackEvidence{
 				ConflictingBlock: &LightBlock{
@@ -292,7 +291,6 @@ func TestEvidenceProto(t *testing.T) {
 		{"DuplicateVoteEvidence success", &DuplicateVoteEvidence{VoteA: v2, VoteB: v}, false, false},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			pb, err := EvidenceToProto(tt.evidence)
 			if tt.toProtoErr {
@@ -309,4 +307,24 @@ func TestEvidenceProto(t *testing.T) {
 			require.Equal(t, tt.evidence, evi, tt.testName)
 		})
 	}
+}
+
+// Test that the new JSON tags are picked up correctly, see issue #3528.
+func TestDuplicateVoteEvidenceJSON(t *testing.T) {
+	var evidence DuplicateVoteEvidence
+	js, err := cmtjson.Marshal(evidence)
+	require.NoError(t, err)
+
+	wantJSON := `{"type":"tendermint/DuplicateVoteEvidence","value":{"vote_a":null,"vote_b":null,"total_voting_power":"0","validator_power":"0","timestamp":"0001-01-01T00:00:00Z"}}`
+	assert.Equal(t, wantJSON, string(js))
+}
+
+// Test that the new JSON tags are picked up correctly, see issue #3528.
+func TestLightClientAttackEvidenceJSON(t *testing.T) {
+	var evidence LightClientAttackEvidence
+	js, err := cmtjson.Marshal(evidence)
+	require.NoError(t, err)
+
+	wantJSON := `{"type":"tendermint/LightClientAttackEvidence","value":{"conflicting_block":null,"common_height":"0","byzantine_validators":null,"total_voting_power":"0","timestamp":"0001-01-01T00:00:00Z"}}`
+	assert.Equal(t, wantJSON, string(js))
 }

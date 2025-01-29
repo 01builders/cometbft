@@ -1,5 +1,5 @@
 ---
-order: 2
+order: 4
 ---
 
 # Creating a built-in application in Go
@@ -48,7 +48,7 @@ have installed and the computer platform):
 
 ```bash
 $ go version
-go version go1.22.2 darwin/amd64
+go version go1.23.1 darwin/amd64
 
 ```
 
@@ -115,13 +115,14 @@ go mod init kvstore
 This should an output similar to this.
 
 **NOTE**: No need to run `go mod tidy` at this time, just ignore it for now.
+
 ```bash
 go: creating new go.mod: module kvstore
 go: to add module requirements and sums:
 	go mod tidy
 ```
 
-go 1.22.2
+go 1.23.1
 Now, lets add `cometbft` as a dependency to our project. Run the `go get` command below:
 
 ```bash
@@ -134,6 +135,7 @@ or `v1.0.1`
 ```bash
 go: added github.com/cometbft/cometbft v1.0.0
 ```
+
 `
 After running the above commands you will see two generated files, `go.mod` and `go.sum`.
 The go.mod file should look similar to:
@@ -141,7 +143,7 @@ The go.mod file should look similar to:
 ```go
 module kvstore
 
-go 1.21.8
+go 1.23.1
 
 require github.com/cometbft/cometbft v1.0.0 // indirect
 ```
@@ -556,6 +558,19 @@ func (app *KVStoreApplication) ProcessProposal(_ context.Context, proposal *abci
 }
 ```
 
+### 1.3.6 Handling errors
+
+Please note that in the method signature for the ABCI methods, there is a response and an error return, such as
+`(*abcitypes.[Method]Response, error)`. Some of the ABCI methods' responses might include a field that can return
+an error in the response, such as the `Code` field in the `CheckTxResponse`. The application can use the `Code`
+field to signal CometBFT that the transaction was rejected. Other examples are the `TxResults` in the
+`FinalizeBlockResponse`, the `ExecTxResult` that also has a `Code` field which can be used by the application
+to signal that the transactions didn't execute properly, or the `QueryResponse`. The `QueryResponse` also includes
+a `Code` field to signal that a query to the application was unsuccessful or it could not find the information.
+
+The `error` return, as in `(*abcitypes.[Method]Response, error)`, can be used if there are unrecoverable errors.
+In these cases, the application should abort to prevent further unintended consequences.
+
 ## 1.4 Starting an application and a CometBFT instance in the same process
 
 Now that we have the basic functionality of our application in place, let's put
@@ -883,13 +898,16 @@ cometbft
 $ echo "cm9ja3M=" | base64 -d
 rocks
 ```
+
 If you want to search for txs, you can leverage `CometBFT` kv indexer by using the `/tx_search` RPC endpoint:
+
 ```bash
 curl "localhost:26657/tx_search?query=\"app.key='cometbft'\""
 ```
+
 The events (`abcitypes.Event`) added in `FinalizeBlock` are indexed by CometBFT (assuming the `kv` indexer is enabled in the CometBFT's configuration).
 
 
 ## Outro
 
-Hope you could run everything smoothly. If you have any difficulties running through this tutorial, reach out to us via [discord](https://discord.com/invite/cosmosnetwork) or open a new [issue](https://github.com/cometbft/cometbft/issues/new/choose) on Github.
+Hope you could run everything smoothly. If you have any difficulties running through this tutorial, reach out to us via [discord](https://discord.com/invite/interchain) or open a new [issue](https://github.com/cometbft/cometbft/issues/new/choose) on Github.

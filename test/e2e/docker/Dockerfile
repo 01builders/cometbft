@@ -1,18 +1,15 @@
 # We need to build in a Linux environment to support C libraries, e.g. RocksDB.
 # We use Debian instead of Alpine, so that we can use binary database packages
 # instead of spending time compiling them.
-FROM cometbft/cometbft-db-testing:v0.12.0
+FROM cometbft/cometbft-db-testing:v1.0.1
 
 RUN apt-get -qq update -y && apt-get -qq upgrade -y >/dev/null
 
-# For the latency-setter script
-RUN apt-get -qq install -y iputils-ping iproute2 python3-netifaces >/dev/null
-RUN mkdir -p /scripts
-COPY test/e2e/pkg/latency/aws-latencies.csv /scripts/
-COPY test/e2e/pkg/latency/latency-setter.py /scripts/
+# For latency emulation, install iproute2, which includes tc.
+RUN apt-get -qq install -y iputils-ping iproute2 >/dev/null
 
 # Set up build directory /src/cometbft
-ENV COMETBFT_BUILD_OPTIONS badgerdb,boltdb,cleveldb,rocksdb,pebbledb,clock_skew,bls12381
+ENV COMETBFT_BUILD_OPTIONS badgerdb,rocksdb,clock_skew,bls12381
 WORKDIR /src/cometbft
 
 # Fetch dependencies separately (for layer caching)
@@ -30,7 +27,7 @@ RUN cd test/e2e && make node && cp build/node /usr/bin/app
 WORKDIR /cometbft
 VOLUME /cometbft
 ENV CMTHOME=/cometbft
-ENV GORACE "halt_on_error=1"
+ENV GORACE="halt_on_error=1"
 
 EXPOSE 26656 26657 26660 6060
 ENTRYPOINT ["/usr/bin/entrypoint"]

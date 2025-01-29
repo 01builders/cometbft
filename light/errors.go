@@ -8,6 +8,8 @@ import (
 	"github.com/cometbft/cometbft/types"
 )
 
+var ErrEmptyTrustedStore = errors.New("trusted store is empty")
+
 // ErrOldHeaderExpired means the old (trusted) header has expired according to
 // the given trustingPeriod and current time. If so, the light client must be
 // reset subjectively.
@@ -75,8 +77,6 @@ var ErrLightClientAttack = errors.New(`attempted attack detected.
 // continue running the light client.
 var ErrNoWitnesses = errors.New("no witnesses connected. please reset light client")
 
-// ----------------------------- INTERNAL ERRORS ---------------------------------
-
 // ErrConflictingHeaders is thrown when two conflicting headers are discovered.
 type ErrConflictingHeaders struct {
 	Block        *types.LightBlock
@@ -88,6 +88,8 @@ func (e ErrConflictingHeaders) Error() string {
 		"header hash (%X) from witness (%d) does not match primary",
 		e.Block.Hash(), e.WitnessIndex)
 }
+
+// ----------------------------- INTERNAL ERRORS ---------------------------------
 
 // errBadWitness is returned when the witness either does not respond or
 // responds with an invalid header.
