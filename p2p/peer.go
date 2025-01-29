@@ -160,6 +160,7 @@ func newPeer(
 		Data:           cmap.NewCMap(),
 		metrics:        NopMetrics(),
 		pendingMetrics: newPeerPendingMetricsCache(),
+		traceClient:    trace.NoOpTracer(),
 	}
 
 	p.mconn = createMConnection(
