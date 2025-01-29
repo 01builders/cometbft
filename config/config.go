@@ -586,6 +586,7 @@ func DefaultGRPCConfig() *GRPCConfig {
 		VersionService:      DefaultGRPCVersionServiceConfig(),
 		BlockService:        DefaultGRPCBlockServiceConfig(),
 		BlockResultsService: DefaultGRPCBlockResultsServiceConfig(),
+		BlockAPIService:     DefaultGRPCBlockAPIServiceConfig(),
 		Privileged:          DefaultGRPCPrivilegedConfig(),
 	}
 }
@@ -633,6 +634,12 @@ func DefaultGRPCVersionServiceConfig() *GRPCVersionServiceConfig {
 
 func DefaultGRPCBlockResultsServiceConfig() *GRPCBlockResultsServiceConfig {
 	return &GRPCBlockResultsServiceConfig{
+		Enabled: true,
+	}
+}
+
+func DefaultGRPCBlockAPIServiceConfig() *GRPCBlockAPIServiceConfig {
+	return &GRPCBlockAPIServiceConfig{
 		Enabled: true,
 	}
 }

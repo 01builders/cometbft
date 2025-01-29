@@ -916,6 +916,7 @@ func (n *Node) startRPC() ([]net.Listener, error) {
 		if n.config.GRPC.BlockResultsService.Enabled {
 			opts = append(opts, grpcserver.WithBlockResultsService(n.blockStore, n.stateStore, n.Logger))
 		}
+		fmt.Println("n.config.GRPC.BlockAPIService.Enabled", n.config.GRPC.BlockAPIService.Enabled)
 		if n.config.GRPC.BlockAPIService.Enabled {
 			opts = append(opts, grpcserver.WithBlockAPIService(env))
 		}

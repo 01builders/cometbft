@@ -23,6 +23,7 @@ type Client interface {
 	VersionServiceClient
 	BlockServiceClient
 	BlockResultsServiceClient
+	BlockAPIServiceClient
 
 	// Close the connection to the server. Any subsequent requests will fail.
 	Close() error
@@ -35,6 +36,7 @@ type clientBuilder struct {
 	versionServiceEnabled      bool
 	blockServiceEnabled        bool
 	blockResultsServiceEnabled bool
+	blockAPIServiceEnabled     bool
 }
 
 func newClientBuilder() *clientBuilder {
@@ -44,6 +46,7 @@ func newClientBuilder() *clientBuilder {
 		versionServiceEnabled:      true,
 		blockServiceEnabled:        true,
 		blockResultsServiceEnabled: true,
+		blockAPIServiceEnabled:     false,
 	}
 }
 
@@ -57,6 +60,7 @@ type client struct {
 	VersionServiceClient
 	BlockServiceClient
 	BlockResultsServiceClient
+	BlockAPIServiceClient
 }
 
 // Close implements Client.
@@ -144,10 +148,15 @@ func New(_ context.Context, addr string, opts ...Option) (Client, error) {
 	if builder.blockResultsServiceEnabled {
 		blockResultServiceClient = newBlockResultsServiceClient(conn)
 	}
+	blockAPIServiceClient := newDisabledBlockAPIServiceClient()
+	if builder.blockAPIServiceEnabled {
+		// blockAPIServiceClient = newBlockAPIServiceClient(conn)
+	}
 	return &client{
 		conn:                      conn,
 		VersionServiceClient:      versionServiceClient,
 		BlockServiceClient:        blockServiceClient,
 		BlockResultsServiceClient: blockResultServiceClient,
+		BlockAPIServiceClient:     blockAPIServiceClient,
 	}, nil
 }

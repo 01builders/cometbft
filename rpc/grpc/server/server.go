@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc"
 
 	pbblocksvc "github.com/cometbft/cometbft/api/cometbft/services/block/v1"
+	blockapisvc "github.com/cometbft/cometbft/api/cometbft/services/block_api/v1"
 	brs "github.com/cometbft/cometbft/api/cometbft/services/block_results/v1"
 	pbversionsvc "github.com/cometbft/cometbft/api/cometbft/services/version/v1"
 	"github.com/cometbft/cometbft/libs/log"
@@ -125,6 +126,10 @@ func Serve(listener net.Listener, opts ...Option) error {
 	if b.blockResultsService != nil {
 		brs.RegisterBlockResultsServiceServer(server, b.blockResultsService)
 		b.logger.Debug("Registered block results service")
+	}
+	if b.blockAPI != nil {
+		blockapisvc.RegisterBlockAPIServiceServer(server, b.blockAPI)
+		b.logger.Debug("Registered block api service")
 	}
 	b.logger.Info("serve", "msg", fmt.Sprintf("Starting gRPC server on %s", listener.Addr()))
 	return server.Serve(b.listener)
