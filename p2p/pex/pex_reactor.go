@@ -83,6 +83,7 @@ type Reactor struct {
 
 	book              AddrBook
 	config            *ReactorConfig
+	ensurePeersCh     chan struct{} // Wakes up ensurePeersRoutine()
 	ensurePeersPeriod time.Duration // TODO: should go in the config
 	peersRoutineWg    sync.WaitGroup
 
@@ -132,6 +133,7 @@ func NewReactor(b AddrBook, config *ReactorConfig) *Reactor {
 	r := &Reactor{
 		book:                 b,
 		config:               config,
+		ensurePeersCh:        make(chan struct{}),
 		ensurePeersPeriod:    defaultEnsurePeersPeriod,
 		requestsSent:         cmap.NewCMap(),
 		lastReceivedRequests: cmap.NewCMap(),
@@ -292,7 +294,7 @@ func (r *Reactor) Receive(e p2p.Envelope) {
 		err = r.ReceiveAddrs(addrs, e.Src)
 		if err != nil {
 			r.Switch.StopPeerForError(e.Src, err)
-			if err == ErrUnsolicitedList {
+			if errors.Is(err, ErrUnsolicitedList) {
 				r.book.MarkBad(e.Src.SocketAddr(), defaultBanTime)
 			}
 			return
@@ -367,14 +369,6 @@ func (r *Reactor) ReceiveAddrs(addrs []*p2p.NetAddress, src Peer) error {
 		return err
 	}
 
-	srcIsSeed := false
-	for _, seedAddr := range r.seedAddrs {
-		if seedAddr.Equals(srcAddr) {
-			srcIsSeed = true
-			break
-		}
-	}
-
 	for _, netAddr := range addrs {
 		// NOTE: we check netAddr validity and routability in book#AddAddress.
 		err = r.book.AddAddress(netAddr, srcAddr)
@@ -384,21 +378,16 @@ func (r *Reactor) ReceiveAddrs(addrs []*p2p.NetAddress, src Peer) error {
 			// peer here too?
 			continue
 		}
+	}
 
-		// If this address came from a seed node, try to connect to it without
-		// waiting (#2093)
-		if srcIsSeed {
-			go func(addr *p2p.NetAddress) {
-				err := r.dialPeer(addr)
-				if err != nil {
-					switch err.(type) {
-					case errMaxAttemptsToDial, errTooEarlyToDial, p2p.ErrCurrentlyDialingOrExistingAddress:
-						r.Logger.Debug(err.Error(), "addr", addr)
-					default:
-						r.Logger.Debug(err.Error(), "addr", addr)
-					}
-				}
-			}(netAddr)
+	// Try to connect to addresses coming from a seed node without waiting (#2093)
+	for _, seedAddr := range r.seedAddrs {
+		if seedAddr.Equals(srcAddr) {
+			select {
+			case r.ensurePeersCh <- struct{}{}:
+			default:
+			}
+			break
 		}
 	}
 
@@ -437,7 +426,7 @@ func (r *Reactor) ensurePeersRoutine() {
 
 	// fire once immediately.
 	// ensures we dial the seeds right away if the book is empty
-	r.ensurePeers()
+	r.ensurePeers(true)
 
 	// fire periodically
 	ticker := time.NewTicker(r.ensurePeersPeriod)
@@ -445,7 +434,9 @@ func (r *Reactor) ensurePeersRoutine() {
 	for {
 		select {
 		case <-ticker.C:
-			r.ensurePeers()
+			r.ensurePeers(true)
+		case <-r.ensurePeersCh:
+			r.ensurePeers(false)
 		case <-r.book.Quit():
 			return
 		case <-r.Quit():
@@ -459,7 +450,7 @@ func (r *Reactor) ensurePeersRoutine() {
 // heuristic that we haven't perfected yet, or, perhaps is manually edited by
 // the node operator. It should not be used to compute what addresses are
 // already connected or not.
-func (r *Reactor) ensurePeers() {
+func (r *Reactor) ensurePeers(ensurePeersPeriodElapsed bool) {
 	var (
 		out, in, dial = r.Switch.NumPeers()
 		numToDial     = r.Switch.MaxNumOutboundPeers() - (out + dial)
@@ -529,7 +520,7 @@ func (r *Reactor) ensurePeers() {
 	if r.book.NeedMoreAddrs() {
 		// 1) Pick a random peer and ask for more.
 		peer := r.Switch.Peers().Random()
-		if peer != nil {
+		if peer != nil && ensurePeersPeriodElapsed {
 			r.Logger.Info("We need more addresses. Sending pexRequest to random peer", "peer", peer)
 			r.RequestAddrs(peer)
 		}

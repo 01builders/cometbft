@@ -77,6 +77,8 @@ type VersionParams struct {
 }
 
 // FeatureParams configure the height from which features of CometBFT are enabled.
+// A value of 0 means the feature is disabled. A value > 0 denotes
+// the height at which the feature will be (or has been) enabled.
 type FeatureParams struct {
 	VoteExtensionsEnableHeight int64 `json:"vote_extensions_enable_height"`
 	PbtsEnableHeight           int64 `json:"pbts_enable_height"`
@@ -192,10 +194,10 @@ func DefaultFeatureParams() FeatureParams {
 
 func DefaultSynchronyParams() SynchronyParams {
 	// Default values determined based on experimental results and on
-	// https://github.com/tendermint/tendermint/issues/7202
+	// https://github.com/cometbft/cometbft/issues/4246
 	return SynchronyParams{
-		Precision:    500 * time.Millisecond,
-		MessageDelay: 2 * time.Second,
+		Precision:    505 * time.Millisecond,
+		MessageDelay: 15 * time.Second,
 	}
 }
 

@@ -9,8 +9,12 @@ import (
 	cmtproto "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	"github.com/cometbft/cometbft/crypto"
 	ce "github.com/cometbft/cometbft/crypto/encoding"
+	"github.com/cometbft/cometbft/internal/keytypes"
 	cmtrand "github.com/cometbft/cometbft/internal/rand"
 )
+
+// ErrUnsupportedPubKeyType is returned when a public key type is not supported.
+var ErrUnsupportedPubKeyType = errors.New("unsupported pubkey type, must be one of: " + keytypes.SupportedKeyTypesStr())
 
 // Volatile state for each Validator
 // NOTE: The ProposerPriority is not included in Validator.Hash();
@@ -49,6 +53,10 @@ func (v *Validator) ValidateBasic() error {
 	addr := v.PubKey.Address()
 	if !bytes.Equal(v.Address, addr) {
 		return fmt.Errorf("validator address is incorrectly derived from pubkey. Exp: %v, got %v", addr, v.Address)
+	}
+
+	if !keytypes.IsSupported(v.PubKey.Type()) {
+		return ErrUnsupportedPubKeyType
 	}
 
 	return nil
@@ -116,10 +124,14 @@ func ValidatorListString(vals []*Validator) string {
 // as its redundant with the pubkey. This also excludes ProposerPriority
 // which changes every round.
 func (v *Validator) Bytes() []byte {
+	pk, err := ce.PubKeyToProto(v.PubKey)
+	if err != nil {
+		panic(err)
+	}
+
 	pbv := cmtproto.SimpleValidator{
+		PubKey:      &pk,
 		VotingPower: v.VotingPower,
-		PubKeyType:  v.PubKey.Type(),
-		PubKeyBytes: v.PubKey.Bytes(),
 	}
 
 	bz, err := pbv.Marshal()
@@ -159,7 +171,10 @@ func ValidatorFromProto(vp *cmtproto.Validator) (*Validator, error) {
 
 	pk, err := ce.PubKeyFromTypeAndBytes(vp.PubKeyType, vp.PubKeyBytes)
 	if err != nil {
-		return nil, err
+		pk, err = ce.PubKeyFromProto(*vp.PubKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 	v := new(Validator)
 	v.Address = vp.GetAddress()

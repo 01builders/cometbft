@@ -22,6 +22,7 @@ import (
 	"github.com/cometbft/cometbft/crypto/tmhash"
 	"github.com/cometbft/cometbft/internal/bits"
 	cstypes "github.com/cometbft/cometbft/internal/consensus/types"
+	cmtrand "github.com/cometbft/cometbft/internal/rand"
 	"github.com/cometbft/cometbft/libs/bytes"
 	"github.com/cometbft/cometbft/libs/json"
 	"github.com/cometbft/cometbft/libs/log"
@@ -232,7 +233,7 @@ func TestReactorCreatesBlockWhenEmptyBlocksFalse(t *testing.T) {
 	defer stopConsensusNet(log.TestingLogger(), reactors, eventBuses)
 
 	// send a tx
-	reqRes, err := assertMempool(css[3].txNotifier).CheckTx(kvstore.NewTxFromID(1))
+	reqRes, err := assertMempool(css[3].txNotifier).CheckTx(kvstore.NewTxFromID(1), "")
 	if err != nil {
 		t.Error(err)
 	}
@@ -634,6 +635,7 @@ func TestReactorWithDefaultTimeoutCommit(t *testing.T) {
 	// override default TimeoutCommit == 0 for tests
 	for i := 0; i < n; i++ {
 		css[i].config.TimeoutCommit = 1 * time.Second
+		css[i].config.SkipTimeoutCommit = false //nolint:staticcheck
 	}
 
 	reactors, blocksSubs, eventBuses := startConsensusNet(t, css, n-1)
@@ -664,7 +666,7 @@ func waitForAndValidateBlock(
 
 		// optionally add transactions for the next block
 		for _, tx := range txs {
-			reqRes, err := assertMempool(css[j].txNotifier).CheckTx(tx)
+			reqRes, err := assertMempool(css[j].txNotifier).CheckTx(tx, "")
 			require.NoError(t, err)
 			require.False(t, reqRes.Response.GetCheckTx().IsErr())
 		}
@@ -802,7 +804,6 @@ func TestNewRoundStepMessageValidateBasic(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			message := NewRoundStepMessage{
 				Height:          tc.messageHeight,
@@ -837,7 +838,6 @@ func TestNewRoundStepMessageValidateHeight(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			message := NewRoundStepMessage{
 				Height:          tc.messageHeight,
@@ -882,7 +882,6 @@ func TestNewValidBlockMessageValidateBasic(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
 			msg := &NewValidBlockMessage{
 				Height: 1,
@@ -918,7 +917,6 @@ func TestProposalPOLMessageValidateBasic(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
 			msg := &ProposalPOLMessage{
 				Height:           1,
@@ -951,7 +949,6 @@ func TestBlockPartMessageValidateBasic(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			message := BlockPartMessage{
 				Height: tc.messageHeight,
@@ -991,7 +988,6 @@ func TestHasVoteMessageValidateBasic(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			message := HasVoteMessage{
 				Height: tc.messageHeight,
@@ -1036,7 +1032,6 @@ func TestVoteSetMaj23MessageValidateBasic(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			message := VoteSetMaj23Message{
 				Height:  tc.messageHeight,
@@ -1074,7 +1069,6 @@ func TestVoteSetBitsMessageValidateBasic(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		tc := tc
 		t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
 			msg := &VoteSetBitsMessage{
 				Height:  1,
@@ -1120,4 +1114,41 @@ func TestMarshalJSONPeerState(t *testing.T) {
 			"votes":"0",
 			"block_parts":"0"}
 		}`, string(data))
+}
+
+func TestVoteMessageValidateBasic(t *testing.T) {
+	cs, vss := randState(2)
+	chainID := cs.state.ChainID
+
+	randBytes := cmtrand.Bytes(tmhash.Size)
+	blockID := types.BlockID{
+		Hash: randBytes,
+		PartSetHeader: types.PartSetHeader{
+			Total: 1,
+			Hash:  randBytes,
+		},
+	}
+	vote := signVote(vss[1], types.PrecommitType, chainID, blockID, true)
+
+	testCases := []struct {
+		malleateFn func(*VoteMessage)
+		expErr     string
+	}{
+		{func(_ *VoteMessage) {}, ""},
+		{func(msg *VoteMessage) { msg.Vote.ValidatorIndex = -1 }, "negative ValidatorIndex"},
+		// INVALID, but passes ValidateBasic, since the method does not know the number of active validators
+		{func(msg *VoteMessage) { msg.Vote.ValidatorIndex = 1000 }, ""},
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
+			msg := &VoteMessage{vote}
+
+			tc.malleateFn(msg)
+			err := msg.ValidateBasic()
+			if tc.expErr != "" && assert.Error(t, err) { //nolint:testifylint // require.Error doesn't work with the conditional here
+				assert.Contains(t, err.Error(), tc.expErr)
+			}
+		})
+	}
 }

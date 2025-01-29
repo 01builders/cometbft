@@ -284,7 +284,6 @@ func TestIsVoteTypeValid(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		tt := tt
 		t.Run(tt.name, func(_ *testing.T) {
 			if rs := IsVoteTypeValid(tt.in); rs != tt.out {
 				t.Errorf("got unexpected Vote type. Expected:\n%v\nGot:\n%v", rs, tt.out)
@@ -532,7 +531,7 @@ func TestSignAndCheckVote(t *testing.T) {
 				v.BlockID = BlockID{make([]byte, 0), PartSetHeader{0, make([]byte, 0)}}
 				return v
 			}(),
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name:              "precommit without extension",

@@ -66,7 +66,7 @@ func BenchmarkBlockerIndexer_Prune(_ *testing.B) {
 		}
 	}()
 
-	store, err := db.NewDB("block", db.GoLevelDBBackend, config.DBDir())
+	store, err := db.NewDB("block", db.PebbleDBBackend, config.DBDir())
 	if err != nil {
 		panic(err)
 	}
@@ -207,7 +207,6 @@ func TestBlockIndexer(t *testing.T) {
 	}
 
 	for name, tc := range testCases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			results, err := indexer.Search(context.Background(), tc.q)
 			require.NoError(t, err)
@@ -365,7 +364,6 @@ func TestBlockIndexerMulti(t *testing.T) {
 	}
 
 	for name, tc := range testCases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			results, err := indexer.Search(context.Background(), tc.q)
 			require.NoError(t, err)
@@ -500,7 +498,6 @@ func TestBigInt(t *testing.T) {
 		},
 	}
 	for name, tc := range testCases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			results, err := indexer.Search(context.Background(), tc.q)
 			require.NoError(t, err)

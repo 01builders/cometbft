@@ -183,9 +183,22 @@ func (cfg *Config) ValidateBasic() error {
 }
 
 // CheckDeprecated returns any deprecation warnings. These are printed to the operator on startup.
-func (*Config) CheckDeprecated() []string {
+func (cfg *Config) CheckDeprecated() []string {
 	var warnings []string
+	if cfg.Consensus.SkipTimeoutCommit {
+		warnings = append(warnings, "skip_timeout_commit is deprecated. Set timeout_commit to 0s instead.")
+	}
 	return warnings
+}
+
+// PossibleMisconfigurations returns a list of possible conflicting entries that
+// may lead to unexpected behavior.
+func (cfg *Config) PossibleMisconfigurations() []string {
+	res := []string{}
+	for _, elem := range cfg.StateSync.PossibleMisconfigurations() {
+		res = append(res, "[statesync] section: "+elem)
+	}
+	return res
 }
 
 // -----------------------------------------------------------------------------
@@ -208,33 +221,29 @@ type BaseConfig struct {
 	// A custom human readable name for this node
 	Moniker string `mapstructure:"moniker"`
 
-	// Database backend: goleveldb | cleveldb | boltdb | rocksdb | pebbledb
+	// Database backend: badgerdb | goleveldb | pebbledb | rocksdb | cleveldb | boltdb
+	// * badgerdb (uses github.com/dgraph-io/badger)
+	//   - stable
+	//   - pure go
+	//   - use badgerdb build tag (go build -tags badgerdb)
 	// * goleveldb (github.com/syndtr/goleveldb)
 	//   - UNMAINTAINED
 	//   - stable
 	//   - pure go
+	// * pebbledb (uses github.com/cockroachdb/pebble)
+	//   - stable
+	//   - pure go
+	// * rocksdb (uses github.com/linxGnu/grocksdb)
+	//   - requires gcc
+	//   - use rocksdb build tag (go build -tags rocksdb)
 	// * cleveldb (uses levigo wrapper)
 	//   - DEPRECATED
 	//   - requires gcc
 	//   - use cleveldb build tag (go build -tags cleveldb)
 	// * boltdb (uses etcd's fork of bolt - github.com/etcd-io/bbolt)
 	//   - DEPRECATED
-	//   - EXPERIMENTAL
 	//   - stable
 	//   - use boltdb build tag (go build -tags boltdb)
-	// * rocksdb (uses github.com/linxGnu/grocksdb)
-	//   - EXPERIMENTAL
-	//   - requires gcc
-	//   - use rocksdb build tag (go build -tags rocksdb)
-	// * badgerdb (uses github.com/dgraph-io/badger)
-	//   - EXPERIMENTAL
-	//   - stable
-	//   - use badgerdb build tag (go build -tags badgerdb)
-	// * pebbledb (uses github.com/cockroachdb/pebble)
-	//   - EXPERIMENTAL
-	//   - stable
-	//   - pure go
-	//   - use pebbledb build tag (go build -tags pebbledb)
 	DBBackend string `mapstructure:"db_backend"`
 
 	// Database directory
@@ -284,7 +293,7 @@ func DefaultBaseConfig() BaseConfig {
 		LogLevel:           DefaultLogLevel,
 		LogFormat:          LogFormatPlain,
 		FilterPeers:        false,
-		DBBackend:          "goleveldb",
+		DBBackend:          "pebbledb",
 		DBPath:             DefaultDataDir,
 	}
 }
@@ -914,7 +923,7 @@ type MempoolConfig struct {
 	// transactions and a 5MB maximum mempool byte size, the mempool will
 	// only accept five transactions.
 	MaxTxsBytes int64 `mapstructure:"max_txs_bytes"`
-	// Size of the cache (used to filter transactions we saw earlier) in transactions
+	// Size of the cache (used to filter transactions we saw earlier) in transactions.
 	CacheSize int `mapstructure:"cache_size"`
 	// Do not remove invalid transactions from the cache (default: false)
 	// Set to true if it's not possible for any invalid transaction to become
@@ -1005,6 +1014,20 @@ func (cfg *MempoolConfig) ValidateBasic() error {
 	if cfg.ExperimentalMaxGossipConnectionsToNonPersistentPeers < 0 {
 		return cmterrors.ErrNegativeField{Field: "experimental_max_gossip_connections_to_non_persistent_peers"}
 	}
+
+	// Flood mempool with zero capacity is not allowed.
+	if cfg.Type != MempoolTypeNop {
+		if cfg.Size == 0 {
+			return cmterrors.ErrNegativeOrZeroField{Field: "size"}
+		}
+		if cfg.MaxTxsBytes == 0 {
+			return cmterrors.ErrNegativeOrZeroField{Field: "max_txs_bytes"}
+		}
+		if cfg.MaxTxBytes == 0 {
+			return cmterrors.ErrNegativeOrZeroField{Field: "max_tx_bytes"}
+		}
+	}
+
 	return nil
 }
 
@@ -1098,6 +1121,15 @@ func (cfg *StateSyncConfig) ValidateBasic() error {
 	return nil
 }
 
+// PossibleMisconfigurations returns a list of possible conflicting entries that
+// may lead to unexpected behavior.
+func (cfg *StateSyncConfig) PossibleMisconfigurations() []string {
+	if !cfg.Enable && len(cfg.RPCServers) != 0 {
+		return []string{"rpc_servers specified but enable = false"}
+	}
+	return []string{}
+}
+
 // -----------------------------------------------------------------------------
 // BlockSyncConfig
 
@@ -1149,16 +1181,23 @@ type ConsensusConfig struct {
 	TimeoutPropose time.Duration `mapstructure:"timeout_propose"`
 	// How much timeout_propose increases with each round
 	TimeoutProposeDelta time.Duration `mapstructure:"timeout_propose_delta"`
-	// How long we wait after receiving +2/3 prevotes/precommits for “anything” (ie. not a single block or nil)
-	TimeoutVote time.Duration `mapstructure:"timeout_vote"`
-	// How much the timeout_vote increases with each round
-	TimeoutVoteDelta time.Duration `mapstructure:"timeout_vote_delta"`
+	// How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
+	TimeoutPrevote time.Duration `mapstructure:"timeout_prevote"`
+	// How much the timeout_prevote increases with each round
+	TimeoutPrevoteDelta time.Duration `mapstructure:"timeout_prevote_delta"`
+	// How long we wait after receiving +2/3 precommits for “anything” (ie. not a single block or nil)
+	TimeoutPrecommit time.Duration `mapstructure:"timeout_precommit"`
+	// How much the timeout_precommit increases with each round
+	TimeoutPrecommitDelta time.Duration `mapstructure:"timeout_precommit_delta"`
 	// How long we wait after committing a block, before starting on the new
 	// height (this gives us a chance to receive some more precommits, even
 	// though we already have +2/3).
 	// NOTE: when modifying, make sure to update time_iota_ms genesis parameter
 	// Set to 0 if you want to make progress as soon as the node has all the precommits.
 	TimeoutCommit time.Duration `mapstructure:"timeout_commit"`
+
+	// Deprecated: set `timeout_commit` to 0 instead.
+	SkipTimeoutCommit bool `mapstructure:"skip_timeout_commit"`
 
 	// EmptyBlocks mode and possible interval between empty blocks
 	CreateEmptyBlocks         bool          `mapstructure:"create_empty_blocks"`
@@ -1179,9 +1218,12 @@ func DefaultConsensusConfig() *ConsensusConfig {
 		WalPath:                          filepath.Join(DefaultDataDir, "cs.wal", "wal"),
 		TimeoutPropose:                   3000 * time.Millisecond,
 		TimeoutProposeDelta:              500 * time.Millisecond,
-		TimeoutVote:                      1000 * time.Millisecond,
-		TimeoutVoteDelta:                 500 * time.Millisecond,
+		TimeoutPrevote:                   1000 * time.Millisecond,
+		TimeoutPrevoteDelta:              500 * time.Millisecond,
+		TimeoutPrecommit:                 1000 * time.Millisecond,
+		TimeoutPrecommitDelta:            500 * time.Millisecond,
 		TimeoutCommit:                    1000 * time.Millisecond,
+		SkipTimeoutCommit:                false,
 		CreateEmptyBlocks:                true,
 		CreateEmptyBlocksInterval:        0 * time.Second,
 		PeerGossipSleepDuration:          100 * time.Millisecond,
@@ -1196,10 +1238,13 @@ func TestConsensusConfig() *ConsensusConfig {
 	cfg := DefaultConsensusConfig()
 	cfg.TimeoutPropose = 40 * time.Millisecond
 	cfg.TimeoutProposeDelta = 1 * time.Millisecond
-	cfg.TimeoutVote = 10 * time.Millisecond
-	cfg.TimeoutVoteDelta = 1 * time.Millisecond
+	cfg.TimeoutPrevote = 10 * time.Millisecond
+	cfg.TimeoutPrevoteDelta = 1 * time.Millisecond
+	cfg.TimeoutPrecommit = 10 * time.Millisecond
+	cfg.TimeoutPrecommitDelta = 1 * time.Millisecond
 	// NOTE: when modifying, make sure to update time_iota_ms (testGenesisFmt) in toml.go
 	cfg.TimeoutCommit = 0
+	cfg.SkipTimeoutCommit = true //nolint:staiccheck
 	cfg.PeerGossipSleepDuration = 5 * time.Millisecond
 	cfg.PeerQueryMaj23SleepDuration = 250 * time.Millisecond
 	cfg.DoubleSignCheckHeight = int64(0)
@@ -1211,25 +1256,24 @@ func (cfg *ConsensusConfig) WaitForTxs() bool {
 	return !cfg.CreateEmptyBlocks || cfg.CreateEmptyBlocksInterval > 0
 }
 
+func timeoutTime(baseTimeout, timeoutDelta time.Duration, round int32) time.Duration {
+	timeout := baseTimeout.Nanoseconds() + timeoutDelta.Nanoseconds()*int64(round)
+	return time.Duration(timeout) * time.Nanosecond
+}
+
 // Propose returns the amount of time to wait for a proposal.
 func (cfg *ConsensusConfig) Propose(round int32) time.Duration {
-	return time.Duration(
-		cfg.TimeoutPropose.Nanoseconds()+cfg.TimeoutProposeDelta.Nanoseconds()*int64(round),
-	) * time.Nanosecond
+	return timeoutTime(cfg.TimeoutPropose, cfg.TimeoutProposeDelta, round)
 }
 
 // Prevote returns the amount of time to wait for straggler votes after receiving any +2/3 prevotes.
 func (cfg *ConsensusConfig) Prevote(round int32) time.Duration {
-	return time.Duration(
-		cfg.TimeoutVote.Nanoseconds()+cfg.TimeoutVoteDelta.Nanoseconds()*int64(round),
-	) * time.Nanosecond
+	return timeoutTime(cfg.TimeoutPrevote, cfg.TimeoutPrevoteDelta, round)
 }
 
 // Precommit returns the amount of time to wait for straggler votes after receiving any +2/3 precommits.
 func (cfg *ConsensusConfig) Precommit(round int32) time.Duration {
-	return time.Duration(
-		cfg.TimeoutVote.Nanoseconds()+cfg.TimeoutVoteDelta.Nanoseconds()*int64(round),
-	) * time.Nanosecond
+	return timeoutTime(cfg.TimeoutPrecommit, cfg.TimeoutPrecommitDelta, round)
 }
 
 // Commit returns the amount of time to wait for straggler votes after receiving +2/3 precommits
@@ -1260,11 +1304,17 @@ func (cfg *ConsensusConfig) ValidateBasic() error {
 	if cfg.TimeoutProposeDelta < 0 {
 		return cmterrors.ErrNegativeField{Field: "timeout_propose_delta"}
 	}
-	if cfg.TimeoutVote < 0 {
-		return cmterrors.ErrNegativeField{Field: "timeout_vote"}
+	if cfg.TimeoutPrevote < 0 {
+		return cmterrors.ErrNegativeField{Field: "timeout_prevote"}
 	}
-	if cfg.TimeoutVoteDelta < 0 {
-		return cmterrors.ErrNegativeField{Field: "timeout_vote_delta"}
+	if cfg.TimeoutPrevoteDelta < 0 {
+		return cmterrors.ErrNegativeField{Field: "timeout_prevote_delta"}
+	}
+	if cfg.TimeoutPrecommit < 0 {
+		return cmterrors.ErrNegativeField{Field: "timeout_precommit"}
+	}
+	if cfg.TimeoutPrecommitDelta < 0 {
+		return cmterrors.ErrNegativeField{Field: "timeout_precommit_delta"}
 	}
 	if cfg.TimeoutCommit < 0 {
 		return cmterrors.ErrNegativeField{Field: "timeout_commit"}
@@ -1311,13 +1361,6 @@ type StorageConfig struct {
 	// large multiple of your retain height as it might occur bigger overheads.
 	// 1000 by default.
 	CompactionInterval int64 `mapstructure:"compaction_interval"`
-	// Hex representation of the hash of the genesis file.
-	// This is an optional parameter set when an operator provides
-	// a hash via the command line.
-	// It is used to verify the hash of the actual genesis file.
-	// Note that if the provided has does not match the hash of the genesis file
-	// the node will report an error and not boot.
-	GenesisHash string `mapstructure:"genesis_hash"`
 
 	// The representation of keys in the database.
 	// The current representation of keys in Comet's stores is considered to be v1
@@ -1335,7 +1378,6 @@ func DefaultStorageConfig() *StorageConfig {
 		Pruning:               DefaultPruningConfig(),
 		Compact:               false,
 		CompactionInterval:    1000,
-		GenesisHash:           "",
 		ExperimentalKeyLayout: "v1",
 	}
 }
@@ -1346,7 +1388,6 @@ func TestStorageConfig() *StorageConfig {
 	return &StorageConfig{
 		DiscardABCIResponses: false,
 		Pruning:              TestPruningConfig(),
-		GenesisHash:          "",
 	}
 }
 
@@ -1386,6 +1427,15 @@ type TxIndexConfig struct {
 	// The PostgreSQL connection configuration, the connection format:
 	// postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
 	PsqlConn string `mapstructure:"psql-conn"`
+
+	// The PostgreSQL table that stores indexed blocks.
+	TableBlocks string `mapstructure:"table_blocks"`
+	// The PostgreSQL table that stores indexed transaction results.
+	TableTxResults string `mapstructure:"table_tx_results"`
+	// The PostgreSQL table that stores indexed events.
+	TableEvents string `mapstructure:"table_events"`
+	// The PostgreSQL table that stores indexed attributes.
+	TableAttributes string `mapstructure:"table_attributes"`
 }
 
 // DefaultTxIndexConfig returns a default configuration for the transaction indexer.

@@ -223,7 +223,6 @@ func TestTxSearch(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.q, func(t *testing.T) {
 			results, _, err := indexer.Search(ctx, query.MustCompile(tc.q), DefaultPagination)
 			require.NoError(t, err)
@@ -316,7 +315,6 @@ func TestTxSearchEventMatch(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.q, func(t *testing.T) {
 			results, _, err := indexer.Search(ctx, query.MustCompile(tc.q), DefaultPagination)
 			require.NoError(t, err)
@@ -391,7 +389,6 @@ func TestTxSearchEventMatchByHeight(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.q, func(t *testing.T) {
 			results, _, err := indexer.Search(ctx, query.MustCompile(tc.q), DefaultPagination)
 			require.NoError(t, err)
@@ -496,7 +493,6 @@ func TestTxSearchDeprecatedIndexing(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.q, func(t *testing.T) {
 			results, _, err := indexer.Search(ctx, query.MustCompile(tc.q), DefaultPagination)
 			require.NoError(t, err)
@@ -866,7 +862,6 @@ func TestBigInt(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.q, func(t *testing.T) {
 			results, _, err := indexer.Search(ctx, query.MustCompile(tc.q), DefaultPagination)
 			require.NoError(t, err)
@@ -933,4 +928,30 @@ func setDiff(bigger [][]byte, smaller [][]byte) [][]byte {
 		}
 	}
 	return diff
+}
+
+func TestExtractEventSeqFromKey(t *testing.T) {
+	testCases := []struct {
+		str      string
+		expected string
+	}{
+		{
+			"0/0/0/1234$es$0",
+			"0",
+		},
+		{
+			"0/0/0/1234$es$1234",
+			"1234",
+		},
+		{
+			"0/0/0/1234",
+			"0",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.expected, func(t *testing.T) {
+			assert.Equal(t, extractEventSeqFromKey([]byte(tc.str)), tc.expected)
+		})
+	}
 }
