@@ -2033,11 +2033,16 @@ func (cs *State) recordMetrics(height int64, block *types.Block) {
 	if height > 1 {
 		lastBlockMeta := cs.blockStore.LoadBlockMeta(height - 1)
 		if lastBlockMeta != nil {
-			cs.metrics.BlockIntervalSeconds.Observe(
-				block.Time.Sub(lastBlockMeta.Header.Time).Seconds(),
-			)
+			elapsedTime := block.Time.Sub(lastBlockMeta.Header.Time).Seconds()
+			cs.metrics.BlockIntervalSeconds.Observe(elapsedTime)
+			cs.metrics.BlockTimeSeconds.Set(elapsedTime)
 		}
 	}
+
+	blockSize := block.Size()
+
+	// trace some metadata about the block
+	schema.WriteBlockSummary(cs.traceClient, block, blockSize)
 
 	cs.metrics.NumTxs.Set(float64(len(block.Data.Txs)))
 	cs.metrics.TotalTxs.Add(float64(len(block.Data.Txs)))

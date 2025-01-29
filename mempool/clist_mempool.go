@@ -12,6 +12,7 @@ import (
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/internal/clist"
+	"github.com/cometbft/cometbft/internal/trace"
 	"github.com/cometbft/cometbft/libs/log"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
 	cmtsync "github.com/cometbft/cometbft/libs/sync"
@@ -61,6 +62,8 @@ type CListMempool struct {
 
 	logger  log.Logger
 	metrics *Metrics
+
+	traceClient trace.Tracer
 }
 
 var _ Mempool = &CListMempool{}
@@ -83,6 +86,7 @@ func NewCListMempool(
 		recheck:      newRecheck(),
 		logger:       log.NewNopLogger(),
 		metrics:      NopMetrics(),
+		traceClient:  trace.NoOpTracer(),
 	}
 	mp.height.Store(height)
 
@@ -197,6 +201,12 @@ func WithPostCheck(f PostCheckFunc) CListMempoolOption {
 // WithMetrics sets the metrics.
 func WithMetrics(metrics *Metrics) CListMempoolOption {
 	return func(mem *CListMempool) { mem.metrics = metrics }
+}
+
+func WithTraceClient(tc trace.Tracer) CListMempoolOption {
+	return func(txmp *CListMempool) {
+		txmp.traceClient = tc
+	}
 }
 
 // Safe for concurrent use by multiple goroutines.

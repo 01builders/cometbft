@@ -194,6 +194,13 @@ func MakeConfig(node *e2e.Node) (*config.Config, error) {
 	cfg.Mempool.ExperimentalMaxGossipConnectionsToNonPersistentPeers = int(node.Testnet.ExperimentalMaxGossipConnectionsToNonPersistentPeers)
 	cfg.Mempool.ExperimentalMaxGossipConnectionsToPersistentPeers = int(node.Testnet.ExperimentalMaxGossipConnectionsToPersistentPeers)
 
+	cfg.Instrumentation.TraceType = "celestia"
+	cfg.Instrumentation.TracePushConfig = node.TracePushConfig
+	cfg.Instrumentation.TracePullAddress = node.TracePullAddress
+	cfg.Instrumentation.PyroscopeTrace = node.PyroscopeTrace
+	cfg.Instrumentation.PyroscopeURL = node.PyroscopeURL
+	cfg.Instrumentation.PyroscopeProfileTypes = node.PyroscopeProfileTypes
+
 	// Assume that full nodes and validators will have a data companion
 	// attached, which will need access to the privileged gRPC endpoint.
 	if (node.Mode == e2e.ModeValidator || node.Mode == e2e.ModeFull) && node.EnableCompanionPruning {
@@ -303,6 +310,13 @@ func MakeConfig(node *e2e.Node) (*config.Config, error) {
 
 	if node.CompactionInterval != 0 && node.Compact {
 		cfg.Storage.CompactionInterval = node.CompactionInterval
+	}
+
+	if node.Testnet.MaxInboundConnections != 0 {
+		cfg.P2P.MaxNumInboundPeers = node.Testnet.MaxInboundConnections
+	}
+	if node.Testnet.MaxOutboundConnections != 0 {
+		cfg.P2P.MaxNumOutboundPeers = node.Testnet.MaxOutboundConnections
 	}
 	return cfg, nil
 }

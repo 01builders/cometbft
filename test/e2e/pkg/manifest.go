@@ -135,6 +135,13 @@ type Manifest struct {
 	// -1 denotes it is set at genesis.
 	// 0 denotes it is set at InitChain.
 	PbtsUpdateHeight int64 `toml:"pbts_update_height"`
+
+	// MaxInboundConnections and MaxOutboundConnection are the maximum number
+	// of connections a node has. This can be used to throttle the degree of
+	// connectivity of the network. If not specified, the default is taken
+	// from config/config.go
+	MaxInboundConnections  int `toml:"max_inbound_connections"`
+	MaxOutboundConnections int `toml:"max_outbound_connections"`
 }
 
 // ManifestNode represents a node in a testnet manifest.

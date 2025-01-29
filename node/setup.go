@@ -87,6 +87,10 @@ func DefaultNewNode(config *cfg.Config, logger log.Logger) (*Node, error) {
 		return nil, fmt.Errorf("failed to load or gen node key %s: %w", config.NodeKeyFile(), err)
 	}
 
+	if err := config.ValidateBasic(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
 	return NewNode(context.Background(), config,
 		privval.LoadOrGenFilePV(config.PrivValidatorKeyFile(), config.PrivValidatorStateFile()),
 		nodeKey,
@@ -262,7 +266,7 @@ func createMempoolAndMempoolReactor(
 			mempl.WithMetrics(memplMetrics),
 			mempl.WithPreCheck(sm.TxPreCheck(state)),
 			mempl.WithPostCheck(sm.TxPostCheck(state)),
-			// mempl.WithTraceClient(traceClient),
+			mempl.WithTraceClient(traceClient),
 		)
 		mp.SetLogger(logger)
 		reactor := mempl.NewReactor(

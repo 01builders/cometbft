@@ -107,6 +107,9 @@ type Testnet struct {
 	DefaultZone                                          string
 	PbtsEnableHeight                                     int64
 	PbtsUpdateHeight                                     int64
+
+	MaxInboundConnections  int
+	MaxOutboundConnections int
 }
 
 // Node represents a CometBFT node in a testnet.
@@ -123,28 +126,38 @@ type Node struct {
 	GRPCProxyPort           uint32
 	GRPCPrivilegedProxyPort uint32
 	StartAt                 int64
-	BlockSyncVersion        string
-	StateSync               bool
-	Database                string
-	ABCIProtocol            Protocol
-	PrivvalProtocol         Protocol
-	PersistInterval         uint64
-	SnapshotInterval        uint64
-	RetainBlocks            uint64
-	EnableCompanionPruning  bool
-	Seeds                   []*Node
-	PersistentPeers         []*Node
-	Perturbations           []Perturbation
-	SendNoLoad              bool
-	Prometheus              bool
-	PrometheusProxyPort     uint32
-	Zone                    ZoneID
-	ExperimentalKeyLayout   string
-	Compact                 bool
-	CompactionInterval      int64
-	DiscardABCIResponses    bool
-	Indexer                 string
-	ClockSkew               time.Duration
+
+	BlockSyncVersion       string
+	StateSync              bool
+	Database               string
+	ABCIProtocol           Protocol
+	PrivvalProtocol        Protocol
+	PersistInterval        uint64
+	SnapshotInterval       uint64
+	RetainBlocks           uint64
+	EnableCompanionPruning bool
+	Seeds                  []*Node
+	PersistentPeers        []*Node
+	Perturbations          []Perturbation
+	SendNoLoad             bool
+	Prometheus             bool
+	PrometheusProxyPort    uint32
+	Zone                   ZoneID
+	ExperimentalKeyLayout  string
+	Compact                bool
+	CompactionInterval     int64
+	DiscardABCIResponses   bool
+	Indexer                string
+	ClockSkew              time.Duration
+
+	MaxInboundConnections  int
+	MaxOutboundConnections int
+
+	TracePushConfig       string
+	TracePullAddress      string
+	PyroscopeURL          string
+	PyroscopeTrace        bool
+	PyroscopeProfileTypes []string
 }
 
 // LoadTestnet loads a testnet from a manifest file. The testnet files are
@@ -210,6 +223,9 @@ func NewTestnetFromManifest(manifest Manifest, file string, ifd InfrastructureDa
 		DefaultZone:      manifest.DefaultZone,
 		PbtsEnableHeight: manifest.PbtsEnableHeight,
 		PbtsUpdateHeight: manifest.PbtsUpdateHeight,
+
+		MaxInboundConnections:  manifest.MaxInboundConnections,
+		MaxOutboundConnections: manifest.MaxOutboundConnections,
 	}
 	if len(manifest.KeyType) != 0 {
 		testnet.KeyType = manifest.KeyType
@@ -280,6 +296,12 @@ func NewTestnetFromManifest(manifest Manifest, file string, ifd InfrastructureDa
 			DiscardABCIResponses:    nodeManifest.DiscardABCIResponses,
 			Indexer:                 nodeManifest.Indexer,
 			ClockSkew:               nodeManifest.ClockSkew,
+
+			TracePushConfig:       ifd.TracePushConfig,
+			TracePullAddress:      ifd.TracePullAddress,
+			PyroscopeURL:          ifd.PyroscopeURL,
+			PyroscopeTrace:        ifd.PyroscopeTrace,
+			PyroscopeProfileTypes: ifd.PyroscopeProfileTypes,
 		}
 		if node.StartAt == testnet.InitialHeight {
 			node.StartAt = 0 // normalize to 0 for initial nodes, since code expects this
@@ -312,6 +334,13 @@ func NewTestnetFromManifest(manifest Manifest, file string, ifd InfrastructureDa
 			node.Zone = ZoneID(nodeManifest.Zone)
 		} else if testnet.DefaultZone != "" {
 			node.Zone = ZoneID(testnet.DefaultZone)
+		}
+
+		if node.MaxInboundConnections < 0 {
+			return nil, fmt.Errorf("MaxInboundConnections must not be negative")
+		}
+		if node.MaxOutboundConnections < 0 {
+			return nil, fmt.Errorf("MaxOutboundConnections must not be negative")
 		}
 
 		testnet.Nodes = append(testnet.Nodes, node)
