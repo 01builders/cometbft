@@ -526,16 +526,16 @@ func (conR *Reactor) broadcastNewRoundStepMessage(rs *cstypes.RoundState) {
 			ChannelID: StateChannel,
 			Message:   nrsMsg,
 		})
-		schema.WriteConsensusState(
-			conR.traceClient,
-			rs.Height,
-			rs.Round,
-			schema.Broadcast,
-			schema.ConsensusNewRoundStep,
-			schema.Upload,
-			fmt.Sprintf("%d", nrsMsg.Step),
-		)
 	}()
+	schema.WriteConsensusState(
+		conR.traceClient,
+		rs.Height,
+		rs.Round,
+		schema.Broadcast,
+		schema.ConsensusNewRoundStep,
+		schema.Upload,
+		fmt.Sprintf("%d", nrsMsg.Step),
+	)
 }
 
 func (conR *Reactor) broadcastNewValidBlockMessage(rs *cstypes.RoundState) {
@@ -552,15 +552,15 @@ func (conR *Reactor) broadcastNewValidBlockMessage(rs *cstypes.RoundState) {
 			ChannelID: StateChannel,
 			Message:   csMsg,
 		})
-		schema.WriteConsensusState(
-			conR.traceClient,
-			rs.Height,
-			rs.Round,
-			schema.Broadcast,
-			schema.ConsensusNewValidBlock,
-			schema.Upload,
-		)
 	}()
+	schema.WriteConsensusState(
+		conR.traceClient,
+		rs.Height,
+		rs.Round,
+		schema.Broadcast,
+		schema.ConsensusNewValidBlock,
+		schema.Upload,
+	)
 }
 
 // Broadcasts HasVoteMessage to peers that care.
@@ -576,16 +576,16 @@ func (conR *Reactor) broadcastHasVoteMessage(vote *types.Vote) {
 			ChannelID: StateChannel,
 			Message:   msg,
 		})
-		schema.WriteConsensusState(
-			conR.traceClient,
-			vote.Height,
-			vote.Round,
-			schema.Broadcast,
-			schema.ConsensusHasVote,
-			schema.Upload,
-			vote.Type.String(),
-		)
 	}()
+	schema.WriteConsensusState(
+		conR.traceClient,
+		vote.Height,
+		vote.Round,
+		schema.Broadcast,
+		schema.ConsensusHasVote,
+		schema.Upload,
+		vote.Type.String(),
+	)
 
 	/*
 		// TODO: Make this broadcast more selective.
