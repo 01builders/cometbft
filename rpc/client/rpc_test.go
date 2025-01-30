@@ -565,8 +565,8 @@ func TestDataCommitment(t *testing.T) {
 	// check if data commitment is not nil.
 	// Checking if the commitment is correct is done in `core/blocks_test.go`.
 	dataCommitment, err := c.DataCommitment(context.Background(), 1, uint64(expectedHeight))
-	require.NotNil(t, dataCommitment, "data commitment shouldn't be nul.")
 	require.Nil(t, err, "%+v when creating data commitment.", err)
+	require.NotNil(t, dataCommitment, "data commitment shouldn't be nul.")
 }
 
 func TestTxSearchWithTimeout(t *testing.T) {

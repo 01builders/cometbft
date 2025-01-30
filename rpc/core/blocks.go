@@ -528,8 +528,8 @@ func (env *Environment) fetchDataRootTuples(start, end uint64) ([]DataRootTuple,
 	tuples := make([]DataRootTuple, 0, end-start)
 	for height := start; height < end; height++ {
 		//nolint:gosec
-		block, err := env.BlockStore.LoadBlock(int64(height))
-		if err != nil {
+		block, meta := env.BlockStore.LoadBlock(int64(height))
+		if block == nil || meta == nil {
 			return nil, fmt.Errorf("couldn't load block %d", height)
 		}
 		tuples = append(tuples, DataRootTuple{
