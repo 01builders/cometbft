@@ -10,7 +10,6 @@ import (
 
 	"github.com/cometbft/cometbft/internal/cmap"
 	"github.com/cometbft/cometbft/internal/trace"
-	"github.com/cometbft/cometbft/internal/trace/schema"
 	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cometbft/cometbft/libs/service"
 	cmtconn "github.com/cometbft/cometbft/p2p/conn"
@@ -455,7 +454,7 @@ func createMConnection(
 				panic(fmt.Sprintf("unwrapping message: %v", err))
 			}
 		}
-		schema.WriteReceivedBytes(p.traceClient, string(p.ID()), chID, len(msgBytes))
+		// schema.WriteReceivedBytes(p.traceClient, string(p.ID()), chID, len(msgBytes)) // Not concurrency safe
 		p.pendingMetrics.AddPendingRecvBytes(getMsgType(msg), len(msgBytes))
 		reactor.Receive(Envelope{
 			ChannelID: chID,
