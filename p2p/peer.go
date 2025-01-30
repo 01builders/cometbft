@@ -397,7 +397,7 @@ func (p *peer) metricsReporter() {
 			}
 
 			p.metrics.PeerPendingSendBytes.With("peer_id", string(p.ID())).Set(sendQueueSize)
-			schema.WritePendingBytes(p.traceClient, string(p.ID()), queues)
+			// schema.WritePendingBytes(p.traceClient, string(p.ID()), queues) // schema is not concurrency safe
 			// Report per peer, per message total bytes, since the last interval
 			func() {
 				p.pendingMetrics.mtx.Lock()
