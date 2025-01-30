@@ -296,7 +296,7 @@ func (ps *PartSet) AddPart(part *Part) (bool, error) {
 
 func (ps *PartSet) AddPartWithoutProof(part *Part) (bool, error) {
 	if part == nil {
-		return false, fmt.Errorf("nil part")
+		return false, errors.New("nil part")
 	}
 
 	ps.mtx.Lock()

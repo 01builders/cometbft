@@ -75,11 +75,11 @@ func TestUnmarshalIndexWrapper(t *testing.T) {
 	_, ok = UnmarshalIndexWrapper(rawBlock)
 	require.False(t, ok)
 
-	indexWrapper, err := MarshalIndexWrapper(rawBlock, 0)
+	IndexWrapper, err := MarshalIndexWrapper(rawBlock, 0)
 	require.NoError(t, err)
 
 	// finally, ensure that the unwrapped bytes are identical to the input
-	indexWrapper, ok = UnmarshalIndexWrapper(indexWrapper)
+	indexWrapper, ok := UnmarshalIndexWrapper(IndexWrapper)
 	require.True(t, ok)
 	require.Equal(t, rawBlock, indexWrapper.Tx)
 }

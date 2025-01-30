@@ -130,7 +130,7 @@ func GetTable(serverURL, table, dirPath string) error {
 		panic("Not a multipart response")
 	}
 
-	err = os.MkdirAll(dirPath, 0755)
+	err = os.MkdirAll(dirPath, 0o755)
 	if err != nil {
 		return err
 	}

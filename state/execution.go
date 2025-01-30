@@ -60,7 +60,7 @@ func BlockExecutorWithMetrics(metrics *Metrics) BlockExecutorOption {
 	}
 }
 
-// WithBlockStore optionally stores txInfo
+// .
 func WithBlockStore(blockStore BlockStore) BlockExecutorOption {
 	return func(blockExec *BlockExecutor) {
 		blockExec.blockStore = blockStore

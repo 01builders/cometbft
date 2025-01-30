@@ -13,7 +13,7 @@ func MempoolTables() []string {
 	}
 }
 
-// Schema constants for the mempool_tx table
+// Schema constants for the mempool_tx table.
 const (
 	// MempoolTxTable is the tracing "measurement" (aka table) for the mempool
 	// that stores tracing data related to gossiping transactions.

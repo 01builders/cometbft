@@ -158,7 +158,7 @@ func (BlockSummary) Table() string {
 	return BlockTable
 }
 
-// WriteBlockSummary writes a tracing point for a block using the predetermined
+// WriteBlockSummary writes a tracing point for a block using the predetermined.
 func WriteBlockSummary(client trace.Tracer, block *types.Block, size int) {
 	client.Write(BlockSummary{
 		Height:                   block.Height,

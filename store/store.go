@@ -914,10 +914,10 @@ func addTimeSample(h metrics.Histogram, start time.Time) func() {
 // Only the error logs are saved for failed transactions.
 func (bs *BlockStore) SaveTxInfo(block *types.Block, txResponseCodes []uint32, logs []string) error {
 	if len(txResponseCodes) != len(block.Txs) {
-		return fmt.Errorf("txResponseCodes length mismatch with block txs length")
+		return errors.New("txResponseCodes length mismatch with block txs length")
 	}
 	if len(logs) != len(block.Txs) {
-		return fmt.Errorf("logs length mismatch with block txs length")
+		return errors.New("logs length mismatch with block txs length")
 	}
 
 	// Create a new batch

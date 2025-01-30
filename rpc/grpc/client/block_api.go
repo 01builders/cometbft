@@ -2,8 +2,7 @@ package client
 
 import "context"
 
-type BlockAPIServiceClient interface {
-}
+type BlockAPIServiceClient interface{}
 
 type disabledBlockAPIServiceClient struct{}
 
