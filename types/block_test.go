@@ -788,8 +788,8 @@ func TestBlockProtoBuf(t *testing.T) {
 }
 
 func TestDataProtoBuf(t *testing.T) {
-	data := &Data{Txs: Txs{Tx([]byte{1}), Tx([]byte{2}), Tx([]byte{3})}}
-	data2 := &Data{Txs: Txs{}}
+	data := &Data{Txs: Txs{Tx([]byte{1}), Tx([]byte{2}), Tx([]byte{3})}, DataRootHash: []byte{1, 2, 3}, SquareSize: 10}
+	data2 := &Data{Txs: Txs{}, DataRootHash: []byte{1, 2, 3}, SquareSize: 0}
 	testCases := []struct {
 		msg     string
 		data1   *Data
