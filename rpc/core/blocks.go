@@ -59,7 +59,7 @@ func (env *Environment) BlockchainInfo(
 // Header gets block header at a given height.
 // If no height is provided, it will fetch the latest header.
 // More: https://docs.tendermint.com/master/rpc/#/Info/header
-func (env *Environment) Header(ctx *rpctypes.Context, heightPtr *int64) (*ctypes.ResultHeader, error) {
+func (env *Environment) Header(_ *rpctypes.Context, heightPtr *int64) (*ctypes.ResultHeader, error) {
 	height, err := env.getHeight(env.BlockStore.Height(), heightPtr)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (env *Environment) Header(ctx *rpctypes.Context, heightPtr *int64) (*ctypes
 
 // HeaderByHash gets header by hash.
 // More: https://docs.tendermint.com/master/rpc/#/Info/header_by_hash
-func (env *Environment) HeaderByHash(ctx *rpctypes.Context, hash bytes.HexBytes) (*ctypes.ResultHeader, error) {
+func (env *Environment) HeaderByHash(_ *rpctypes.Context, hash bytes.HexBytes) (*ctypes.ResultHeader, error) {
 	// N.B. The hash parameter is HexBytes so that the reflective parameter
 	// decoding logic in the HTTP service will correctly translate from JSON.
 	// See https://github.com/tendermint/tendermint/issues/6802 for context.
@@ -90,7 +90,7 @@ func (env *Environment) HeaderByHash(ctx *rpctypes.Context, hash bytes.HexBytes)
 
 // SignedBlock fetches the set of transactions at a specified height and all the relevant
 // data to verify the transactions (i.e. using light client verification).
-func (env *Environment) SignedBlock(ctx *rpctypes.Context, heightPtr *int64) (*ctypes.ResultSignedBlock, error) {
+func (env *Environment) SignedBlock(_ *rpctypes.Context, heightPtr *int64) (*ctypes.ResultSignedBlock, error) {
 	height, err := env.getHeight(env.BlockStore.Height(), heightPtr)
 	if err != nil {
 		return nil, err
@@ -294,7 +294,7 @@ func (env *Environment) BlockSearch(
 
 // DataCommitment collects the data roots over a provided ordered range of blocks,
 // and then creates a new Merkle root of those data roots. The range is end exclusive.
-func (env *Environment) DataCommitment(ctx *rpctypes.Context, start, end uint64) (*ctypes.ResultDataCommitment, error) {
+func (env *Environment) DataCommitment(_ *rpctypes.Context, start, end uint64) (*ctypes.ResultDataCommitment, error) {
 	err := env.validateDataCommitmentRange(start, end)
 	if err != nil {
 		return nil, err
@@ -315,7 +315,7 @@ func (env *Environment) DataCommitment(ctx *rpctypes.Context, start, end uint64)
 // height `height` in the set of blocks defined by `start` and `end`. The range
 // is end exclusive.
 func (env *Environment) DataRootInclusionProof(
-	ctx *rpctypes.Context,
+	_ *rpctypes.Context,
 	height int64,
 	start,
 	end uint64,
@@ -336,7 +336,7 @@ func (env *Environment) DataRootInclusionProof(
 	return &ctypes.ResultDataRootInclusionProof{Proof: *proof}, nil
 }
 
-// padBytes Pad bytes to given length
+// padBytes Pad bytes to given length.
 func padBytes(byt []byte, length int) ([]byte, error) {
 	l := len(byt)
 	if l > length {
@@ -428,17 +428,17 @@ const dataCommitmentBlocksLimit = 10_000 // ~33 hours of blocks assuming 12-seco
 // the defined set of heights.
 func (env *Environment) validateDataCommitmentRange(start uint64, end uint64) error {
 	if start == 0 {
-		return fmt.Errorf("the first block is 0")
+		return errors.New("the first block is 0")
 	}
 	heightsRange := end - start
 	if heightsRange > uint64(dataCommitmentBlocksLimit) {
 		return fmt.Errorf("the query exceeds the limit of allowed blocks %d", dataCommitmentBlocksLimit)
 	}
 	if heightsRange == 0 {
-		return fmt.Errorf("cannot create the data commitments for an empty set of blocks")
+		return errors.New("cannot create the data commitments for an empty set of blocks")
 	}
 	if start >= end {
-		return fmt.Errorf("last block is smaller than first block")
+		return errors.New("last block is smaller than first block")
 	}
 	// the data commitment range is end exclusive
 	//nolint:gosec
@@ -504,22 +504,6 @@ func (env *Environment) proveDataRootTuples(tuples []DataRootTuple, height int64
 	_, proofs := merkle.ProofsFromByteSlices(dataRootEncodedTuples)
 	//nolint:gosec
 	return proofs[height-int64(tuples[0].height)], nil
-}
-
-// sortBlocks takes a list of block heights and sorts them according to the order: "asc" or "desc".
-// If `orderBy` is blank, then it is considered descending.
-func sortBlocks(results []int64, orderBy string) error {
-	switch orderBy {
-	case "desc", "":
-		sort.Slice(results, func(i, j int) bool { return results[i] > results[j] })
-
-	case "asc":
-		sort.Slice(results, func(i, j int) bool { return results[i] < results[j] })
-
-	default:
-		return errors.New("expected order_by to be either `asc` or `desc` or empty")
-	}
-	return nil
 }
 
 // fetchDataRootTuples takes an end exclusive range of heights and fetches its

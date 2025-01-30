@@ -29,7 +29,7 @@ type MempoolTx struct {
 }
 
 // Table returns the table name for the MempoolTx struct.
-func (m MempoolTx) Table() string {
+func (MempoolTx) Table() string {
 	return MempoolTxTable
 }
 
@@ -73,7 +73,7 @@ type MempoolPeerState struct {
 }
 
 // Table returns the table name for the MempoolPeerState struct.
-func (m MempoolPeerState) Table() string {
+func (MempoolPeerState) Table() string {
 	return MempoolPeerStateTable
 }
 

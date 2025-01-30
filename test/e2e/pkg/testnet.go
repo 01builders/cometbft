@@ -270,10 +270,10 @@ func NewTestnetFromManifest(manifest Manifest, file string, ifd InfrastructureDa
 		}
 
 		if node.MaxInboundConnections < 0 {
-			return nil, fmt.Errorf("MaxInboundConnections must not be negative")
+			return nil, errors.New("MaxInboundConnections must not be negative")
 		}
 		if node.MaxOutboundConnections < 0 {
-			return nil, fmt.Errorf("MaxOutboundConnections must not be negative")
+			return nil, errors.New("MaxOutboundConnections must not be negative")
 		}
 
 		testnet.Nodes = append(testnet.Nodes, node)

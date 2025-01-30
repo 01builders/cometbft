@@ -790,7 +790,7 @@ func (w *WSEvents) eventListener() {
 
 func (c *baseRPCClient) SignedBlock(ctx context.Context, height *int64) (*ctypes.ResultSignedBlock, error) {
 	result := new(ctypes.ResultSignedBlock)
-	params := make(map[string]interface{})
+	params := make(map[string]any)
 	if height != nil {
 		params["height"] = height
 	}
@@ -807,7 +807,7 @@ func (c *baseRPCClient) DataCommitment(
 	end uint64,
 ) (*ctypes.ResultDataCommitment, error) {
 	result := new(ctypes.ResultDataCommitment)
-	params := map[string]interface{}{
+	params := map[string]any{
 		"start": start,
 		"end":   end,
 	}
@@ -825,7 +825,7 @@ func (c *baseRPCClient) TxStatus(
 	hash []byte,
 ) (*ctypes.ResultTxStatus, error) {
 	result := new(ctypes.ResultTxStatus)
-	params := map[string]interface{}{
+	params := map[string]any{
 		"hash": hash,
 	}
 
@@ -844,7 +844,7 @@ func (c *baseRPCClient) DataRootInclusionProof(
 	end uint64,
 ) (*ctypes.ResultDataRootInclusionProof, error) {
 	result := new(ctypes.ResultDataRootInclusionProof)
-	params := map[string]interface{}{
+	params := map[string]any{
 		"height": height,
 		"start":  start,
 		"end":    end,
@@ -867,7 +867,7 @@ func (c *baseRPCClient) ProveShares(
 	endShare uint64,
 ) (types.ShareProof, error) {
 	result := new(types.ShareProof)
-	params := map[string]interface{}{
+	params := map[string]any{
 		"height":     height,
 		"startShare": startShare,
 		"endShare":   endShare,
@@ -886,7 +886,7 @@ func (c *baseRPCClient) ProveSharesV2(
 	endShare uint64,
 ) (*ctypes.ResultShareProof, error) {
 	result := new(ctypes.ResultShareProof)
-	params := map[string]interface{}{
+	params := map[string]any{
 		"height":     height,
 		"startShare": startShare,
 		"endShare":   endShare,

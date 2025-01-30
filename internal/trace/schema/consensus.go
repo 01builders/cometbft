@@ -33,7 +33,7 @@ type RoundState struct {
 }
 
 // Table returns the table name for the RoundState struct.
-func (r RoundState) Table() string {
+func (RoundState) Table() string {
 	return RoundStateTable
 }
 
@@ -61,7 +61,7 @@ type BlockPart struct {
 }
 
 // Table returns the table name for the BlockPart struct.
-func (b BlockPart) Table() string {
+func (BlockPart) Table() string {
 	return BlockPartsTable
 }
 
@@ -112,7 +112,7 @@ type Vote struct {
 	TransferType             TransferType `json:"transfer_type"`
 }
 
-func (v Vote) Table() string {
+func (Vote) Table() string {
 	return VoteTable
 }
 
@@ -154,7 +154,7 @@ type BlockSummary struct {
 	LastCommitRound          int32  `json:"last_commit_round"`
 }
 
-func (b BlockSummary) Table() string {
+func (BlockSummary) Table() string {
 	return BlockTable
 }
 
@@ -196,7 +196,7 @@ type ConsensusState struct {
 	Data         []string     `json:"data,omitempty"`
 }
 
-func (c ConsensusState) Table() string {
+func (ConsensusState) Table() string {
 	return ConsensusStateTable
 }
 
@@ -230,7 +230,7 @@ type Proposal struct {
 	TransferType TransferType `json:"transfer_type"`
 }
 
-func (p Proposal) Table() string {
+func (Proposal) Table() string {
 	return ProposalTable
 }
 

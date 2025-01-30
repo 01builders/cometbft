@@ -254,7 +254,7 @@ func (NopEventBus) PublishEventNewBlockHeader(EventDataNewBlockHeader) error {
 	return nil
 }
 
-func (NopEventBus) PublishEventNewSignedBlock(data EventDataSignedBlock) error {
+func (NopEventBus) PublishEventNewSignedBlock(EventDataSignedBlock) error {
 	return nil
 }
 

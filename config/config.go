@@ -1562,13 +1562,13 @@ func (cfg *InstrumentationConfig) ValidateBasic() error {
 		return nil
 	}
 	if cfg.TracePullAddress == "" {
-		return fmt.Errorf("token is required")
+		return errors.New("token is required")
 	}
 	if cfg.TraceType == "" {
-		return fmt.Errorf("org is required")
+		return errors.New("org is required")
 	}
 	if cfg.TraceBufferSize <= 0 {
-		return fmt.Errorf("batch size must be greater than 0")
+		return errors.New("batch size must be greater than 0")
 	}
 	return nil
 }

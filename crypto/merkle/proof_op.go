@@ -94,7 +94,7 @@ func (poz ProofOperators) VerifyFromKeys(root []byte, keys [][]byte, args [][]by
 		}
 		args, err = op.Run(args)
 		if err != nil {
-			return
+			return err
 		}
 	}
 	if !bytes.Equal(root, args[0]) {

@@ -74,11 +74,11 @@ func NewLocalTracer(cfg *config.Config, logger log.Logger, chainID, nodeID strin
 	p := path.Join(cfg.RootDir, "data", "traces")
 	for _, table := range splitAndTrimEmpty(cfg.Instrumentation.TracingTables, ",", " ") {
 		fileName := fmt.Sprintf("%s/%s.jsonl", p, table)
-		err := os.MkdirAll(p, 0700)
+		err := os.MkdirAll(p, 0o700)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create directory %s: %w", p, err)
 		}
-		file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+		file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o644)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open or create file %s: %w", fileName, err)
 		}
@@ -115,7 +115,7 @@ func NewLocalTracer(cfg *config.Config, logger log.Logger, chainID, nodeID strin
 	return lt, nil
 }
 
-// GetPushConfigFromEnv reads the required environment variables to push trace
+// GetPushConfigFromEnv reads the required environment variables to push trace.
 func GetPushConfigFromEnv() (S3Config, error) {
 	bucketName := os.Getenv(PushBucketName)
 	region := os.Getenv(PushRegion)
@@ -128,7 +128,7 @@ func GetPushConfigFromEnv() (S3Config, error) {
 	if bucketName == "" || region == "" || accessKey == "" || secretKey == "" {
 		return S3Config{}, fmt.Errorf("missing required environment variables")
 	}
-	var s3Config = S3Config{
+	s3Config := S3Config{
 		BucketName: bucketName,
 		Region:     region,
 		AccessKey:  accessKey,

@@ -40,9 +40,9 @@ func NoOpTracer() Tracer {
 
 type noOpTracer struct{}
 
-func (n *noOpTracer) Write(_ Entry) {}
-func (n *noOpTracer) ReadTable(_ string) (*os.File, error) {
+func (*noOpTracer) Write(_ Entry) {}
+func (*noOpTracer) ReadTable(_ string) (*os.File, error) {
 	return nil, errors.New("no-op tracer does not support reading")
 }
-func (n *noOpTracer) IsCollecting(_ string) bool { return false }
-func (n *noOpTracer) Stop()                      {}
+func (*noOpTracer) IsCollecting(_ string) bool { return false }
+func (*noOpTracer) Stop()                      {}

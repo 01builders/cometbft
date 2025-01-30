@@ -15,7 +15,6 @@ import (
 )
 
 func populate(cache TxCache, numTxs int) ([][]byte, error) {
-
 	txs := make([][]byte, numTxs)
 	for i := 0; i < numTxs; i++ {
 		// probability of collision is 2**-256
@@ -27,7 +26,6 @@ func populate(cache TxCache, numTxs int) ([][]byte, error) {
 
 		txs[i] = txBytes
 		cache.Push(txBytes)
-
 	}
 	return txs, nil
 }

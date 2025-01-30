@@ -3,9 +3,10 @@ package types
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	types "github.com/cometbft/cometbft/api/cometbft/types/v1"
 	"github.com/cometbft/cometbft/internal/consts"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestShareProofValidate(t *testing.T) {

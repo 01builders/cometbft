@@ -108,7 +108,7 @@ func GetTable(serverURL, table, dirPath string) error {
 	data := url.Values{}
 	data.Set("table", table)
 
-	serverURL = serverURL + "/get_table"
+	serverURL += "/get_table"
 
 	resp, err := http.PostForm(serverURL, data) //nolint:gosec
 	if err != nil {

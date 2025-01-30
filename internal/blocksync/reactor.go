@@ -498,6 +498,10 @@ FOR_LOOP:
 			if err == nil {
 				// validate the block before we persist it
 				err = bcR.blockExec.ValidateBlock(state, first)
+				if err != nil {
+					bcR.Logger.Error("Block validation failed", "height", first.Height, "err", err)
+					continue FOR_LOOP
+				}
 				var stateMachineValid bool
 				// Block sync doesn't check that the `Data` in a block is valid.
 				// Since celestia-core can't determine if the `Data` in a block

@@ -36,7 +36,7 @@ type PeerUpdate struct {
 }
 
 // Table returns the table name for the PeerUpdate struct.
-func (p PeerUpdate) Table() string {
+func (PeerUpdate) Table() string {
 	return PeersTable
 }
 
@@ -55,7 +55,7 @@ type PendingBytes struct {
 	Bytes  map[byte]int `json:"bytes"`
 }
 
-func (s PendingBytes) Table() string {
+func (PendingBytes) Table() string {
 	return PendingBytesTable
 }
 
@@ -73,7 +73,7 @@ type ReceivedBytes struct {
 	Bytes   int    `json:"bytes"`
 }
 
-func (s ReceivedBytes) Table() string {
+func (ReceivedBytes) Table() string {
 	return ReceivedBytesTable
 }
 

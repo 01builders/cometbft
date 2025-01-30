@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -534,7 +535,7 @@ func (conR *Reactor) broadcastNewRoundStepMessage(rs *cstypes.RoundState) {
 		schema.Broadcast,
 		schema.ConsensusNewRoundStep,
 		schema.Upload,
-		fmt.Sprintf("%d", nrsMsg.Step),
+		strconv.FormatUint(uint64(nrsMsg.Step), 10),
 	)
 }
 
@@ -651,7 +652,7 @@ func (conR *Reactor) sendNewRoundStepMessage(peer p2p.Peer) {
 			string(peer.ID()),
 			schema.ConsensusNewRoundStep,
 			schema.Upload,
-			fmt.Sprintf("%d", nrsMsg.Step),
+			strconv.FormatUint(uint64(nrsMsg.Step), 10),
 		)
 	}
 }

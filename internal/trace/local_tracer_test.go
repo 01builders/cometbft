@@ -25,7 +25,7 @@ type testEvent struct {
 	Length int    `json:"length"`
 }
 
-func (c testEvent) Table() string {
+func (testEvent) Table() string {
 	return testEventTable
 }
 

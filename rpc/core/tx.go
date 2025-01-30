@@ -33,7 +33,7 @@ const (
 // transaction is in the mempool, invalidated, or was not sent in the first
 // place.
 // More: https://docs.cometbft.com/main/rpc/#/Info/tx
-func (env *Environment) Tx(_ *rpctypes.Context, hash []byte, prove bool) (*ctypes.ResultTx, error) {
+func (env *Environment) Tx(ctx *rpctypes.Context, hash []byte, prove bool) (*ctypes.ResultTx, error) {
 	// if index is disabled, return error
 	if _, ok := env.TxIndexer.(*null.TxIndex); ok {
 		return nil, errors.New("transaction indexing is disabled")
@@ -50,11 +50,10 @@ func (env *Environment) Tx(_ *rpctypes.Context, hash []byte, prove bool) (*ctype
 
 	var shareProof types.ShareProof
 	if prove {
-		shareProof, err = env.proveTx(r.Height, r.Index)
+		shareProof, err = env.proveTx(ctx, r.Height, r.Index)
 		if err != nil {
 			return nil, err
 		}
-
 	}
 
 	return &ctypes.ResultTx{
@@ -118,7 +117,7 @@ func (env *Environment) TxSearch(
 	for _, r := range results {
 		var shareProof types.ShareProof
 		if prove {
-			shareProof, err = env.proveTx(r.Height, r.Index)
+			shareProof, err = env.proveTx(ctx, r.Height, r.Index)
 			if err != nil {
 				return nil, err
 			}
@@ -137,7 +136,7 @@ func (env *Environment) TxSearch(
 	return &ctypes.ResultTxSearch{Txs: apiResults, TotalCount: totalCount}, nil
 }
 
-func (env *Environment) proveTx(height int64, index uint32) (types.ShareProof, error) {
+func (env *Environment) proveTx(ctx *rpctypes.Context, height int64, index uint32) (types.ShareProof, error) {
 	var (
 		pShareProof cmtproto.ShareProof
 		shareProof  types.ShareProof
@@ -146,7 +145,7 @@ func (env *Environment) proveTx(height int64, index uint32) (types.ShareProof, e
 	if err != nil {
 		return shareProof, err
 	}
-	res, err := env.ProxyAppQuery.Query(context.TODO(), &abcitypes.QueryRequest{ //TODO: remove todo context
+	res, err := env.ProxyAppQuery.Query(ctx.Context(), &abcitypes.QueryRequest{
 		Data: rawBlock,
 		Path: fmt.Sprintf(consts.TxInclusionProofQueryPath, index),
 	})
@@ -181,7 +180,7 @@ func (env *Environment) ProveShares(
 	if err != nil {
 		return shareProof, err
 	}
-	res, err := env.ProxyAppQuery.Query(context.TODO(), &abcitypes.QueryRequest{ //TODO: remove todo context
+	res, err := env.ProxyAppQuery.Query(context.TODO(), &abcitypes.QueryRequest{ // TODO: remove todo context
 		Data: rawBlock,
 		Path: fmt.Sprintf(consts.ShareInclusionProofQueryPath, startShare, endShare),
 	})
@@ -252,8 +251,8 @@ func (env *Environment) ProveSharesV2(
 	return &ctypes.ResultShareProof{ShareProof: shareProof}, nil
 }
 
-func (env *Environment) loadRawBlock(bs state.BlockStore, height int64) ([]byte, error) {
-	var blockMeta = bs.LoadBlockMeta(height)
+func (*Environment) loadRawBlock(bs state.BlockStore, height int64) ([]byte, error) {
+	blockMeta := bs.LoadBlockMeta(height)
 	if blockMeta == nil {
 		return nil, fmt.Errorf("no block found for height %d", height)
 	}

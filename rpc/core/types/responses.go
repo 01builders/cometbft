@@ -40,7 +40,7 @@ type ResultBlock struct {
 	Block   *types.Block  `json:"block"`
 }
 
-// Single block with all data for validation
+// Single block with all data for validation.
 type ResultSignedBlock struct {
 	Header       types.Header       `json:"header"`
 	Commit       types.Commit       `json:"commit"`

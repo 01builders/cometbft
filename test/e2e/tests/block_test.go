@@ -167,6 +167,7 @@ func TestBlock_Time(t *testing.T) {
 }
 
 func TestBlock_SignedData(t *testing.T) {
+	t.Helper()
 	testNode(t, func(t *testing.T, node e2e.Node) {
 		client, err := node.Client()
 		require.NoError(t, err)

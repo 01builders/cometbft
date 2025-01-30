@@ -32,7 +32,7 @@ type BlockAPI struct {
 func New(env *core.Environment) *BlockAPI {
 	return &BlockAPI{
 		heightListeners:   make(map[chan blockapisvc.SubscribeNewHeightsResponse]struct{}, 1000),
-		subscriptionID:    fmt.Sprintf("block-api-subscription-%s", rand.Str(6)),
+		subscriptionID:    "block-api-subscription-" + rand.Str(6),
 		subscriptionQuery: types.EventQueryNewBlock,
 		eventBus:          env.EventBus,
 		env:               env,
@@ -114,7 +114,7 @@ func (blockAPI *BlockAPI) retryNewBlocksSubscription(ctx context.Context) (bool,
 			var err error
 			blockAPI.newBlockSubscription, err = blockAPI.eventBus.Subscribe(
 				ctx,
-				fmt.Sprintf("block-api-subscription-%s", rand.Str(6)),
+				"block-api-subscription-"+rand.Str(6),
 				blockAPI.subscriptionQuery,
 				SubscriptionCapacity,
 			)

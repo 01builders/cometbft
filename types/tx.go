@@ -238,7 +238,7 @@ func UnmarshalIndexWrapper(tx Tx) (indexWrapper cmtproto.IndexWrapper, isIndexWr
 // MarshalIndexWrapper creates a wrapped Tx that includes the original transaction
 // and the share index of the start of its blob.
 //
-// NOTE: must be unwrapped to be a viable sdk.Tx
+// NOTE: must be unwrapped to be a viable sdk.Tx.
 func MarshalIndexWrapper(tx Tx, shareIndexes ...uint32) (Tx, error) {
 	wTx := cmtproto.IndexWrapper{
 		Tx:           tx,
@@ -274,7 +274,7 @@ func UnmarshalBlobTx(tx Tx) (bTx cmtproto.BlobTx, isBlob bool) {
 // blobs.
 //
 // NOTE: Any checks on the blobs or the transaction must be performed in the
-// application
+// application.
 func MarshalBlobTx(tx []byte, blobs ...*cmtproto.Blob) (Tx, error) {
 	bTx := cmtproto.BlobTx{
 		Tx:     tx,
