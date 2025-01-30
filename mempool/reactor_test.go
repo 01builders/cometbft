@@ -504,7 +504,7 @@ func makeReactors(config *cfg.Config, n int, logger *log.Logger) []*Reactor {
 		mempool, cleanup := newMempoolWithApp(cc)
 		defer cleanup()
 
-		reactors[i] = NewReactor(config.Mempool, mempool, false) // so we dont start the consensus states
+		reactors[i] = NewReactor(config.Mempool, mempool, false, nil) // so we dont start the consensus states
 		reactors[i].SetLogger((*logger).With("validator", i))
 	}
 	return reactors

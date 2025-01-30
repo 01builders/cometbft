@@ -1,6 +1,7 @@
 package types
 
 import (
+	stdbytes "bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"math"
@@ -42,7 +43,7 @@ func TestBlockAddEvidence(t *testing.T) {
 	require.NoError(t, err)
 	evList := []Evidence{ev}
 
-	block := MakeBlock(h, txs, extCommit.ToCommit(), evList)
+	block := MakeBlock(h, MakeData(txs), extCommit.ToCommit(), evList)
 	require.NotNil(t, block)
 	require.Len(t, block.Evidence.Evidence, 1)
 	require.NotNil(t, block.EvidenceHash)
@@ -77,13 +78,6 @@ func TestBlockValidateBasic(t *testing.T) {
 			blk.LastCommit.hash = nil // clear hash or change won't be noticed
 		}, true},
 		{"Remove LastCommitHash", func(blk *Block) { blk.LastCommitHash = []byte("something else") }, true},
-		{"Tampered Data", func(blk *Block) {
-			blk.Data.Txs[0] = Tx("something else")
-			blk.Data.hash = nil // clear hash or change won't be noticed
-		}, true},
-		{"Tampered DataHash", func(blk *Block) {
-			blk.DataHash = cmtrand.Bytes(len(blk.DataHash))
-		}, true},
 		{"Tampered EvidenceHash", func(blk *Block) {
 			blk.EvidenceHash = []byte("something else")
 		}, true},
@@ -93,7 +87,7 @@ func TestBlockValidateBasic(t *testing.T) {
 	}
 	for i, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			block := MakeBlock(h, txs, commit, evList)
+			block := MakeBlock(h, MakeData(txs), commit, evList)
 			block.ProposerAddress = valSet.GetProposer().Address
 			tc.malleateBlock(block)
 			err = block.ValidateBasic()
@@ -104,7 +98,7 @@ func TestBlockValidateBasic(t *testing.T) {
 
 func TestBlockHash(t *testing.T) {
 	assert.Nil(t, (*Block)(nil).Hash())
-	assert.Nil(t, MakeBlock(int64(3), []Tx{Tx("Hello World")}, nil, nil).Hash())
+	assert.Nil(t, MakeBlock(int64(3), MakeData([]Tx{Tx("Hello World")}), nil, nil).Hash())
 }
 
 func TestBlockMakePartSet(t *testing.T) {
@@ -112,7 +106,7 @@ func TestBlockMakePartSet(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, bps)
 
-	partSet, err := MakeBlock(int64(3), []Tx{Tx("Hello World")}, nil, nil).MakePartSet(1024)
+	partSet, err := MakeBlock(int64(3), MakeData([]Tx{Tx("Hello World")}), nil, nil).MakePartSet(1024)
 	require.NoError(t, err)
 	assert.NotNil(t, partSet)
 	assert.EqualValues(t, 1, partSet.Total())
@@ -134,7 +128,7 @@ func TestBlockMakePartSetWithEvidence(t *testing.T) {
 	require.NoError(t, err)
 	evList := []Evidence{ev}
 
-	partSet, err := MakeBlock(h, []Tx{Tx("Hello World")}, extCommit.ToCommit(), evList).MakePartSet(512)
+	partSet, err := MakeBlock(h, MakeData([]Tx{Tx("Hello World")}), extCommit.ToCommit(), evList).MakePartSet(512)
 	require.NoError(t, err)
 
 	assert.NotNil(t, partSet)
@@ -154,7 +148,7 @@ func TestBlockHashesTo(t *testing.T) {
 	require.NoError(t, err)
 	evList := []Evidence{ev}
 
-	block := MakeBlock(h, []Tx{Tx("Hello World")}, extCommit.ToCommit(), evList)
+	block := MakeBlock(h, MakeData([]Tx{Tx("Hello World")}), extCommit.ToCommit(), evList)
 	block.ValidatorsHash = valSet.Hash()
 	assert.False(t, block.HashesTo([]byte{}))
 	assert.False(t, block.HashesTo([]byte("something else")))
@@ -162,7 +156,7 @@ func TestBlockHashesTo(t *testing.T) {
 }
 
 func TestBlockSize(t *testing.T) {
-	size := MakeBlock(int64(3), []Tx{Tx("Hello World")}, nil, nil).Size()
+	size := MakeBlock(int64(3), MakeData([]Tx{Tx("Hello World")}), nil, nil).Size()
 	if size <= 0 {
 		t.Fatal("Size of the block is zero or negative")
 	}
@@ -173,7 +167,7 @@ func TestBlockString(t *testing.T) {
 	assert.Equal(t, "nil-Block", (*Block)(nil).StringIndented(""))
 	assert.Equal(t, "nil-Block", (*Block)(nil).StringShort())
 
-	block := MakeBlock(int64(3), []Tx{Tx("Hello World")}, nil, nil)
+	block := MakeBlock(int64(3), MakeData([]Tx{Tx("Hello World")}), nil, nil)
 	assert.NotEqual(t, "nil-Block", block.String())
 	assert.NotEqual(t, "nil-Block", block.StringIndented(""))
 	assert.NotEqual(t, "nil-Block", block.StringShort())
@@ -748,10 +742,10 @@ func TestBlockIDValidateBasic(t *testing.T) {
 func TestBlockProtoBuf(t *testing.T) {
 	h := cmtrand.Int63()
 	c1 := randCommit(cmttime.Now())
-	b1 := MakeBlock(h, []Tx{Tx([]byte{1})}, &Commit{Signatures: []CommitSig{}}, []Evidence{})
+	b1 := MakeBlock(h, MakeData([]Tx{Tx([]byte{1})}), &Commit{Signatures: []CommitSig{}}, []Evidence{})
 	b1.ProposerAddress = cmtrand.Bytes(crypto.AddressSize)
 
-	b2 := MakeBlock(h, []Tx{Tx([]byte{1})}, c1, []Evidence{})
+	b2 := MakeBlock(h, MakeData([]Tx{Tx([]byte{1})}), c1, []Evidence{})
 	b2.ProposerAddress = cmtrand.Bytes(crypto.AddressSize)
 	evidenceTime := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
 	evi, err := NewMockDuplicateVoteEvidence(h, evidenceTime, "block-test-chain")
@@ -759,7 +753,7 @@ func TestBlockProtoBuf(t *testing.T) {
 	b2.Evidence = EvidenceData{Evidence: EvidenceList{evi}}
 	b2.EvidenceHash = b2.Evidence.Hash()
 
-	b3 := MakeBlock(h, []Tx{}, c1, []Evidence{})
+	b3 := MakeBlock(h, MakeData([]Tx{}), c1, []Evidence{})
 	b3.ProposerAddress = cmtrand.Bytes(crypto.AddressSize)
 	testCases := []struct {
 		msg      string
@@ -794,8 +788,8 @@ func TestBlockProtoBuf(t *testing.T) {
 }
 
 func TestDataProtoBuf(t *testing.T) {
-	data := &Data{Txs: Txs{Tx([]byte{1}), Tx([]byte{2}), Tx([]byte{3})}}
-	data2 := &Data{Txs: Txs{}}
+	data := &Data{Txs: Txs{Tx([]byte{1}), Tx([]byte{2}), Tx([]byte{3})}, DataRootHash: []byte{1, 2, 3}, SquareSize: 10}
+	data2 := &Data{Txs: Txs{}, DataRootHash: []byte{1, 2, 3}, SquareSize: 0}
 	testCases := []struct {
 		msg     string
 		data1   *Data
@@ -972,4 +966,28 @@ func TestBlockIDEquals(t *testing.T) {
 	assert.False(t, blockID.Equals(blockIDEmpty))
 	assert.True(t, blockIDEmpty.Equals(blockIDEmpty))
 	assert.False(t, blockIDEmpty.Equals(blockIDDifferent))
+}
+
+func TestBlob(t *testing.T) {
+	namespaceVersion := uint8(0)
+	namespaceID := stdbytes.Repeat([]byte{0x01}, 28)
+	data := []byte("data")
+	shareVersion := uint8(0)
+
+	blob := Blob{
+		NamespaceVersion: namespaceVersion,
+		NamespaceID:      namespaceID,
+		Data:             data,
+		ShareVersion:     shareVersion,
+	}
+
+	t.Run("blob.Namespace() returns encoded namespace", func(t *testing.T) {
+		got := blob.Namespace()
+		want := []byte{
+			0,                                        // namespace version
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // namespace ID
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // namespace ID
+		}
+		assert.Equal(t, want, got)
+	})
 }

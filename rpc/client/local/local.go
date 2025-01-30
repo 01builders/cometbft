@@ -308,3 +308,48 @@ func (c *Local) Unsubscribe(ctx context.Context, subscriber, query string) error
 func (c *Local) UnsubscribeAll(ctx context.Context, subscriber string) error {
 	return c.EventBus.UnsubscribeAll(ctx, subscriber)
 }
+
+func (c *Local) SignedBlock(ctx context.Context, height *int64) (*ctypes.ResultSignedBlock, error) {
+	return c.SignedBlock(ctx, height)
+}
+
+func (c *Local) DataCommitment(
+	ctx context.Context,
+	start uint64,
+	end uint64,
+) (*ctypes.ResultDataCommitment, error) {
+	return c.DataCommitment(ctx, start, end)
+}
+
+func (c *Local) DataRootInclusionProof(
+	ctx context.Context,
+	height uint64,
+	start uint64,
+	end uint64,
+) (*ctypes.ResultDataRootInclusionProof, error) {
+	return c.DataRootInclusionProof(ctx, height, start, end)
+}
+
+// ProveShares
+// Deprecated: Use ProveSharesV2 instead.
+func (c *Local) ProveShares(
+	ctx context.Context,
+	height uint64,
+	startShare uint64,
+	endShare uint64,
+) (types.ShareProof, error) {
+	return c.ProveShares(ctx, height, startShare, endShare)
+}
+
+func (c *Local) ProveSharesV2(
+	ctx context.Context,
+	height uint64,
+	startShare uint64,
+	endShare uint64,
+) (*ctypes.ResultShareProof, error) {
+	return c.ProveSharesV2(ctx, height, startShare, endShare)
+}
+
+func (c *Local) TxStatus(ctx context.Context, hash []byte) (*ctypes.ResultTxStatus, error) {
+	return c.TxStatus(ctx, hash)
+}

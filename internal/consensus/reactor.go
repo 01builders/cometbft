@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,6 +14,8 @@ import (
 	cstypes "github.com/cometbft/cometbft/internal/consensus/types"
 	cmtevents "github.com/cometbft/cometbft/internal/events"
 	cmtrand "github.com/cometbft/cometbft/internal/rand"
+	"github.com/cometbft/cometbft/internal/trace"
+	"github.com/cometbft/cometbft/internal/trace/schema"
 	cmtjson "github.com/cometbft/cometbft/libs/json"
 	"github.com/cometbft/cometbft/libs/log"
 	cmtsync "github.com/cometbft/cometbft/libs/sync"
@@ -50,7 +53,8 @@ type Reactor struct {
 	rs            *cstypes.RoundState
 	initialHeight int64 // under rsMtx
 
-	Metrics *Metrics
+	Metrics     *Metrics
+	traceClient trace.Tracer
 }
 
 type ReactorOption func(*Reactor)
@@ -63,6 +67,7 @@ func NewReactor(consensusState *State, waitSync bool, options ...ReactorOption) 
 		rs:            consensusState.GetRoundState(),
 		initialHeight: consensusState.state.InitialHeight,
 		Metrics:       NopMetrics(),
+		traceClient:   trace.NoOpTracer(),
 	}
 	conR.BaseReactor = *p2p.NewBaseReactor("Consensus", conR)
 	if waitSync {
@@ -272,6 +277,15 @@ func (conR *Reactor) Receive(e p2p.Envelope) {
 			conR.rsMtx.RLock()
 			initialHeight := conR.initialHeight
 			conR.rsMtx.RUnlock()
+			schema.WriteConsensusState(
+				conR.traceClient,
+				msg.Height,
+				msg.Round,
+				string(e.Src.ID()),
+				schema.ConsensusNewRoundStep,
+				schema.Download,
+				fmt.Sprintf("%d", msg.Step),
+			)
 			if err = msg.ValidateHeight(initialHeight); err != nil {
 				conR.Logger.Error("Peer sent us invalid msg", "peer", e.Src, "msg", msg, "err", err)
 				conR.Switch.StopPeerForError(e.Src, err)
@@ -279,15 +293,41 @@ func (conR *Reactor) Receive(e p2p.Envelope) {
 			}
 			ps.ApplyNewRoundStepMessage(msg)
 		case *NewValidBlockMessage:
+			schema.WriteConsensusState(
+				conR.traceClient,
+				msg.Height,
+				msg.Round,
+				string(e.Src.ID()),
+				schema.ConsensusNewValidBlock,
+				schema.Download,
+			)
 			ps.ApplyNewValidBlockMessage(msg)
 		case *HasVoteMessage:
+			schema.WriteConsensusState(
+				conR.traceClient,
+				msg.Height,
+				msg.Round,
+				string(e.Src.ID()),
+				schema.ConsensusHasVote,
+				schema.Download,
+				msg.Type.String(),
+			)
 			ps.ApplyHasVoteMessage(msg)
 		case *HasProposalBlockPartMessage:
 			ps.ApplyHasProposalBlockPartMessage(msg)
 		case *VoteSetMaj23Message:
+
 			conR.rsMtx.RLock()
 			height, votes := conR.rs.Height, conR.rs.Votes
 			conR.rsMtx.RUnlock()
+			schema.WriteConsensusState(
+				conR.traceClient,
+				msg.Height,
+				msg.Round,
+				string(e.Src.ID()),
+				schema.ConsensusVoteSet23Precommit,
+				schema.Download,
+			)
 			if height != msg.Height {
 				return
 			}
@@ -317,10 +357,20 @@ func (conR *Reactor) Receive(e p2p.Envelope) {
 			if votes := ourVotes.ToProto(); votes != nil {
 				eMsg.Votes = *votes
 			}
-			e.Src.TrySend(p2p.Envelope{
+			if e.Src.TrySend(p2p.Envelope{
 				ChannelID: VoteSetBitsChannel,
 				Message:   eMsg,
-			})
+			}) {
+				schema.WriteConsensusState(
+					conR.traceClient,
+					msg.Height,
+					msg.Round,
+					string(e.Src.ID()),
+					schema.ConsensusVoteSetBits,
+					schema.Download,
+					msg.Type.String(),
+				)
+			}
 		default:
 			conR.Logger.Error(fmt.Sprintf("Unknown message type %v", reflect.TypeOf(msg)))
 		}
@@ -334,11 +384,27 @@ func (conR *Reactor) Receive(e p2p.Envelope) {
 		case *ProposalMessage:
 			ps.SetHasProposal(msg.Proposal)
 			conR.conS.peerMsgQueue <- msgInfo{msg, e.Src.ID(), cmttime.Now()}
+			schema.WriteProposal(
+				conR.traceClient,
+				msg.Proposal.Height,
+				msg.Proposal.Round,
+				string(e.Src.ID()),
+				schema.Download,
+			)
 		case *ProposalPOLMessage:
 			ps.ApplyProposalPOLMessage(msg)
+			schema.WriteConsensusState(
+				conR.traceClient,
+				msg.Height,
+				msg.ProposalPOLRound,
+				string(e.Src.ID()),
+				schema.ConsensusPOL,
+				schema.Download,
+			)
 		case *BlockPartMessage:
 			ps.SetHasProposalBlockPart(msg.Height, msg.Round, int(msg.Part.Index))
 			conR.Metrics.BlockParts.With("peer_id", string(e.Src.ID())).Add(1)
+			schema.WriteBlockPart(conR.traceClient, msg.Height, msg.Round, msg.Part.Index, false, string(e.Src.ID()), schema.Download)
 			conR.conS.peerMsgQueue <- msgInfo{msg, e.Src.ID(), time.Time{}}
 		default:
 			conR.Logger.Error(fmt.Sprintf("Unknown message type %v", reflect.TypeOf(msg)))
@@ -352,7 +418,6 @@ func (conR *Reactor) Receive(e p2p.Envelope) {
 		switch msg := msg.(type) {
 		case *VoteMessage:
 			cs := conR.conS
-
 			conR.rsMtx.RLock()
 			height, valSize, lastCommitSize := conR.rs.Height, conR.rs.Validators.Size(), conR.rs.LastCommit.Size()
 			conR.rsMtx.RUnlock()
@@ -463,6 +528,15 @@ func (conR *Reactor) broadcastNewRoundStepMessage(rs *cstypes.RoundState) {
 			Message:   nrsMsg,
 		})
 	}()
+	schema.WriteConsensusState(
+		conR.traceClient,
+		rs.Height,
+		rs.Round,
+		schema.Broadcast,
+		schema.ConsensusNewRoundStep,
+		schema.Upload,
+		strconv.FormatUint(uint64(nrsMsg.Step), 10),
+	)
 }
 
 func (conR *Reactor) broadcastNewValidBlockMessage(rs *cstypes.RoundState) {
@@ -480,6 +554,14 @@ func (conR *Reactor) broadcastNewValidBlockMessage(rs *cstypes.RoundState) {
 			Message:   csMsg,
 		})
 	}()
+	schema.WriteConsensusState(
+		conR.traceClient,
+		rs.Height,
+		rs.Round,
+		schema.Broadcast,
+		schema.ConsensusNewValidBlock,
+		schema.Upload,
+	)
 }
 
 // Broadcasts HasVoteMessage to peers that care.
@@ -490,13 +572,22 @@ func (conR *Reactor) broadcastHasVoteMessage(vote *types.Vote) {
 		Type:   vote.Type,
 		Index:  vote.ValidatorIndex,
 	}
-
 	go func() {
 		conR.Switch.TryBroadcast(p2p.Envelope{
 			ChannelID: StateChannel,
 			Message:   msg,
 		})
 	}()
+	schema.WriteConsensusState(
+		conR.traceClient,
+		vote.Height,
+		vote.Round,
+		schema.Broadcast,
+		schema.ConsensusHasVote,
+		schema.Upload,
+		vote.Type.String(),
+	)
+
 	/*
 		// TODO: Make this broadcast more selective.
 		for _, peer := range conR.Switch.Peers().Copy() {
@@ -550,10 +641,20 @@ func makeRoundStepMessage(rs *cstypes.RoundState) (nrsMsg *cmtcons.NewRoundStep)
 func (conR *Reactor) sendNewRoundStepMessage(peer p2p.Peer) {
 	rs := conR.getRoundState()
 	nrsMsg := makeRoundStepMessage(rs)
-	peer.Send(p2p.Envelope{
+	if peer.Send(p2p.Envelope{
 		ChannelID: StateChannel,
 		Message:   nrsMsg,
-	})
+	}) {
+		schema.WriteConsensusState(
+			conR.traceClient,
+			rs.Height,
+			rs.Round,
+			string(peer.ID()),
+			schema.ConsensusNewRoundStep,
+			schema.Upload,
+			strconv.FormatUint(uint64(nrsMsg.Step), 10),
+		)
+	}
 }
 
 func (conR *Reactor) updateRoundStateRoutine() {
@@ -719,7 +820,7 @@ OUTER_LOOP:
 			prs := ps.GetRoundState()
 			if rs.Height == prs.Height {
 				if maj23, ok := rs.Votes.Prevotes(prs.Round).TwoThirdsMajority(); ok {
-					peer.TrySend(p2p.Envelope{
+					if peer.TrySend(p2p.Envelope{
 						ChannelID: StateChannel,
 						Message: &cmtcons.VoteSetMaj23{
 							Height:  prs.Height,
@@ -727,7 +828,16 @@ OUTER_LOOP:
 							Type:    types.PrevoteType,
 							BlockID: maj23.ToProto(),
 						},
-					})
+					}) {
+						schema.WriteConsensusState(
+							conR.traceClient,
+							rs.Height,
+							rs.Round,
+							string(peer.ID()),
+							schema.ConsensusVoteSet23Prevote,
+							schema.Upload,
+						)
+					}
 					time.Sleep(conR.conS.config.PeerQueryMaj23SleepDuration)
 				}
 			}
@@ -739,7 +849,7 @@ OUTER_LOOP:
 			prs := ps.GetRoundState()
 			if rs.Height == prs.Height {
 				if maj23, ok := rs.Votes.Precommits(prs.Round).TwoThirdsMajority(); ok {
-					peer.TrySend(p2p.Envelope{
+					if peer.TrySend(p2p.Envelope{
 						ChannelID: StateChannel,
 						Message: &cmtcons.VoteSetMaj23{
 							Height:  prs.Height,
@@ -747,7 +857,16 @@ OUTER_LOOP:
 							Type:    types.PrecommitType,
 							BlockID: maj23.ToProto(),
 						},
-					})
+					}) {
+						schema.WriteConsensusState(
+							conR.traceClient,
+							rs.Height,
+							rs.Round,
+							string(peer.ID()),
+							schema.ConsensusVoteSet23Precommit,
+							schema.Upload,
+						)
+					}
 					time.Sleep(conR.conS.config.PeerQueryMaj23SleepDuration)
 				}
 			}
@@ -759,7 +878,7 @@ OUTER_LOOP:
 			prs := ps.GetRoundState()
 			if rs.Height == prs.Height && prs.ProposalPOLRound >= 0 {
 				if maj23, ok := rs.Votes.Prevotes(prs.ProposalPOLRound).TwoThirdsMajority(); ok {
-					peer.TrySend(p2p.Envelope{
+					if peer.TrySend(p2p.Envelope{
 						ChannelID: StateChannel,
 						Message: &cmtcons.VoteSetMaj23{
 							Height:  prs.Height,
@@ -767,7 +886,16 @@ OUTER_LOOP:
 							Type:    types.PrevoteType,
 							BlockID: maj23.ToProto(),
 						},
-					})
+					}) {
+						schema.WriteConsensusState(
+							conR.traceClient,
+							rs.Height,
+							rs.Round,
+							string(peer.ID()),
+							schema.ConsensusPOL,
+							schema.Upload,
+						)
+					}
 					time.Sleep(conR.conS.config.PeerQueryMaj23SleepDuration)
 				}
 			}
@@ -782,7 +910,7 @@ OUTER_LOOP:
 			if prs.CatchupCommitRound != -1 && prs.Height > 0 && prs.Height <= conR.conS.blockStore.Height() &&
 				prs.Height >= conR.conS.blockStore.Base() {
 				if commit := conR.conS.LoadCommit(prs.Height); commit != nil {
-					peer.TrySend(p2p.Envelope{
+					if peer.TrySend(p2p.Envelope{
 						ChannelID: StateChannel,
 						Message: &cmtcons.VoteSetMaj23{
 							Height:  prs.Height,
@@ -790,7 +918,16 @@ OUTER_LOOP:
 							Type:    types.PrecommitType,
 							BlockID: commit.BlockID.ToProto(),
 						},
-					})
+					}) {
+						schema.WriteConsensusState(
+							conR.traceClient,
+							prs.Height,
+							prs.Round,
+							string(peer.ID()),
+							schema.ConsensusVoteSet23Precommit,
+							schema.Upload,
+						)
+					}
 					time.Sleep(conR.conS.config.PeerQueryMaj23SleepDuration)
 				}
 			}
@@ -1068,6 +1205,10 @@ func (conR *Reactor) StringIndented(indent string) string {
 // ReactorMetrics sets the metrics.
 func ReactorMetrics(metrics *Metrics) ReactorOption {
 	return func(conR *Reactor) { conR.Metrics = metrics }
+}
+
+func ReactorTracing(traceClient trace.Tracer) ReactorOption {
+	return func(conR *Reactor) { conR.traceClient = traceClient }
 }
 
 // -----------------------------------------------------------------------------

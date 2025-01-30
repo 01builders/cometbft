@@ -11,6 +11,8 @@ import (
 	"github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/internal/cmap"
 	"github.com/cometbft/cometbft/internal/rand"
+	"github.com/cometbft/cometbft/internal/trace"
+	"github.com/cometbft/cometbft/internal/trace/schema"
 	"github.com/cometbft/cometbft/libs/service"
 	"github.com/cometbft/cometbft/p2p/conn"
 )
@@ -94,7 +96,8 @@ type Switch struct {
 
 	rng *rand.Rand // seed for randomizing dial times and orders
 
-	metrics *Metrics
+	metrics     *Metrics
+	traceClient trace.Tracer
 }
 
 // NetAddress returns the address the switch is listening on.
@@ -126,6 +129,7 @@ func NewSwitch(
 		filterTimeout:        defaultFilterTimeout,
 		persistentPeersAddrs: make([]*NetAddress, 0),
 		unconditionalPeerIDs: make(map[ID]struct{}),
+		traceClient:          trace.NoOpTracer(),
 	}
 
 	// Ensure we have a completely undeterministic PRNG.
@@ -153,6 +157,11 @@ func SwitchPeerFilters(filters ...PeerFilterFunc) SwitchOption {
 // WithMetrics sets the metrics.
 func WithMetrics(metrics *Metrics) SwitchOption {
 	return func(sw *Switch) { sw.metrics = metrics }
+}
+
+// WithTracer sets the tracer.
+func WithTracer(tracer trace.Tracer) SwitchOption {
+	return func(sw *Switch) { sw.traceClient = tracer }
 }
 
 // ---------------------------------------------------------------------
@@ -328,20 +337,48 @@ func (sw *Switch) StopPeerForError(peer Peer, reason any) {
 	sw.stopAndRemovePeer(peer, reason)
 
 	if peer.IsPersistent() {
-		var addr *NetAddress
-		if peer.IsOutbound() { // socket address for outbound peers
-			addr = peer.SocketAddr()
-		} else { // self-reported address for inbound peers
-			var err error
-			addr, err = peer.NodeInfo().NetAddress()
-			if err != nil {
-				sw.Logger.Error("Wanted to reconnect to inbound peer, but self-reported address is wrong",
-					"peer", peer, "err", err)
-				return
-			}
+		// var addr *NetAddress
+		// if peer.IsOutbound() { // socket address for outbound peers
+		// 	addr = peer.SocketAddr()
+		// } else { // self-reported address for inbound peers
+		// 	var err error
+		// 	addr, err = peer.NodeInfo().NetAddress()
+		// 	if err != nil {
+		// 		sw.Logger.Error("Wanted to reconnect to inbound peer, but self-reported address is wrong",
+		// 			"peer", peer, "err", err)
+		// 		return
+		// 	}
+		addr, err := sw.getPeerAddress(peer)
+		if err != nil {
+			sw.Logger.Error("Failed to get address for persistent peer", "peer", peer, "err", err)
+			return
 		}
 		go sw.reconnectToPeer(addr)
 	}
+
+	if peer.HasIPChanged() {
+		addr, err := sw.getPeerAddress(peer)
+		if err != nil {
+			sw.Logger.Error("Failed to get address for peer with changed IP", "peer", peer, "err", err)
+		}
+		go sw.reconnectToPeer(addr)
+	}
+}
+
+// getPeerAddress returns the appropriate NetAddress for a given peer,
+// handling both outbound and inbound peers.
+func (sw *Switch) getPeerAddress(peer Peer) (*NetAddress, error) {
+	if peer.IsOutbound() {
+		return peer.SocketAddr(), nil
+	}
+	// For inbound peers, get the self-reported address
+	addr, err := peer.NodeInfo().NetAddress()
+	if err != nil {
+		sw.Logger.Error("Failed to get address for inbound peer",
+			"peer", peer, "err", err)
+		return nil, err
+	}
+	return addr, nil
 }
 
 // StopPeerGracefully disconnects from a peer gracefully.
@@ -360,6 +397,7 @@ func (sw *Switch) stopAndRemovePeer(peer Peer, reason any) {
 	}
 
 	sw.transport.Cleanup(peer)
+	schema.WritePeerUpdate(sw.traceClient, string(peer.ID()), schema.PeerDisconnect, fmt.Sprintf("%v", reason))
 	for _, reactor := range sw.reactors {
 		reactor.RemovePeer(peer, reason)
 	}
@@ -840,6 +878,7 @@ func (sw *Switch) addPeer(p Peer) error {
 		return err
 	}
 	sw.metrics.Peers.Add(float64(1))
+	schema.WritePeerUpdate(sw.traceClient, string(p.ID()), schema.PeerJoin, "")
 
 	// Start all the reactor protocols on the peer.
 	for _, reactor := range sw.reactors {

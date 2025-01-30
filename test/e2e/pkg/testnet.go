@@ -83,6 +83,9 @@ type Testnet struct {
 
 	// Latency Emulation is enabled when all the nodes have a zone assigned.
 	LatencyEmulationEnabled bool
+
+	MaxInboundConnections  int
+	MaxOutboundConnections int
 }
 
 // Node represents a CometBFT node in a testnet.
@@ -109,6 +112,15 @@ type Node struct {
 	Prometheus              bool
 	PrometheusProxyPort     uint32
 	Zone                    string
+
+	MaxInboundConnections  int
+	MaxOutboundConnections int
+
+	TracePushConfig       string
+	TracePullAddress      string
+	PyroscopeURL          string
+	PyroscopeTrace        bool
+	PyroscopeProfileTypes []string
 }
 
 // LoadTestnet loads a testnet from a manifest file. The testnet files are
@@ -150,6 +162,9 @@ func NewTestnetFromManifest(manifest Manifest, file string, ifd InfrastructureDa
 		Validators:       map[*Node]int64{},
 		ValidatorUpdates: map[int64]map[*Node]int64{},
 		Nodes:            []*Node{},
+
+		MaxInboundConnections:  manifest.MaxInboundConnections,
+		MaxOutboundConnections: manifest.MaxOutboundConnections,
 	}
 	if testnet.InitialHeight == 0 {
 		testnet.InitialHeight = 1
@@ -202,6 +217,12 @@ func NewTestnetFromManifest(manifest Manifest, file string, ifd InfrastructureDa
 			Perturbations:           []Perturbation{},
 			Prometheus:              testnet.Prometheus,
 			Zone:                    nodeManifest.Zone,
+
+			TracePushConfig:       ifd.TracePushConfig,
+			TracePullAddress:      ifd.TracePullAddress,
+			PyroscopeURL:          ifd.PyroscopeURL,
+			PyroscopeTrace:        ifd.PyroscopeTrace,
+			PyroscopeProfileTypes: ifd.PyroscopeProfileTypes,
 		}
 		if node.Version == "" {
 			node.Version = localVersion
@@ -246,6 +267,13 @@ func NewTestnetFromManifest(manifest Manifest, file string, ifd InfrastructureDa
 		// should override a global config in Testnet.
 		if len(manifest.Config) > 0 {
 			node.Config = append(testnet.Config, node.Config...)
+		}
+
+		if node.MaxInboundConnections < 0 {
+			return nil, errors.New("MaxInboundConnections must not be negative")
+		}
+		if node.MaxOutboundConnections < 0 {
+			return nil, errors.New("MaxOutboundConnections must not be negative")
 		}
 
 		testnet.Nodes = append(testnet.Nodes, node)

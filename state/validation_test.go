@@ -91,7 +91,6 @@ func TestValidateBlockHeader(t *testing.T) {
 
 		{"LastBlockID wrong", func(block *types.Block) { block.LastBlockID.PartSetHeader.Total += 10 }},
 		{"LastCommitHash wrong", func(block *types.Block) { block.LastCommitHash = wrongHash }},
-		{"DataHash wrong", func(block *types.Block) { block.DataHash = wrongHash }},
 
 		{"ValidatorsHash wrong", func(block *types.Block) { block.ValidatorsHash = wrongHash }},
 		{"NextValidatorsHash wrong", func(block *types.Block) { block.NextValidatorsHash = wrongHash }},
@@ -339,7 +338,7 @@ func TestValidateBlockEvidence(t *testing.T) {
 				evidence = append(evidence, newEv)
 				currentBytes += int64(len(newEv.Bytes()))
 			}
-			block := state.MakeBlock(height, test.MakeNTxs(height, 10), lastCommit, evidence, proposerAddr)
+			block := state.MakeBlock(height, types.Data{Txs: test.MakeNTxs(height, 10)}, lastCommit, evidence, proposerAddr)
 
 			err := blockExec.ValidateBlock(state, block)
 			if assert.Error(t, err) { //nolint:testifylint // require.Error doesn't work with the conditional here

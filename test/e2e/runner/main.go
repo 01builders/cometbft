@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/cometbft/cometbft/internal/trace"
 	"github.com/cometbft/cometbft/libs/log"
 	e2e "github.com/cometbft/cometbft/test/e2e/pkg"
 	"github.com/cometbft/cometbft/test/e2e/pkg/infra"
@@ -80,6 +81,32 @@ func NewCLI() *CLI {
 				}
 			default:
 				return fmt.Errorf("unknown infrastructure type '%s'", inft)
+			}
+
+			iurl, err := cmd.Flags().GetString(trace.FlagTracePushConfig)
+			if err != nil {
+				return err
+			}
+			itoken, err := cmd.Flags().GetString(trace.FlagTracePullAddress)
+			if err != nil {
+				return err
+			}
+			if ifd.TracePushConfig == "" {
+				ifd.TracePushConfig = iurl
+				ifd.TracePullAddress = itoken
+			}
+
+			purl, err := cmd.Flags().GetString(trace.FlagPyroscopeURL)
+			if err != nil {
+				return err
+			}
+			pTrace, err := cmd.Flags().GetBool(trace.FlagPyroscopeTrace)
+			if err != nil {
+				return err
+			}
+			if ifd.PyroscopeURL == "" {
+				ifd.PyroscopeURL = purl
+				ifd.PyroscopeTrace = pTrace
 			}
 
 			testnetDir, err := cmd.Flags().GetString("testnet-dir")
@@ -187,6 +214,14 @@ func NewCLI() *CLI {
 	cli.root.PersistentFlags().StringP("infrastructure-type", "", "docker", "Backing infrastructure used to run the testnet. Either 'digital-ocean' or 'docker'")
 
 	cli.root.PersistentFlags().StringP("infrastructure-data", "", "", "path to the json file containing the infrastructure data. Only used if the 'infrastructure-type' is set to a value other than 'docker'")
+
+	cli.root.PersistentFlags().String(trace.FlagTracePushConfig, "", trace.FlagTracePushConfigDescription)
+
+	cli.root.PersistentFlags().String(trace.FlagTracePullAddress, "", trace.FlagTracePullAddressDescription)
+
+	cli.root.PersistentFlags().String(trace.FlagPyroscopeURL, "", trace.FlagPyroscopeURLDescription)
+
+	cli.root.PersistentFlags().Bool(trace.FlagPyroscopeTrace, false, trace.FlagPyroscopeTraceDescription)
 
 	cli.root.Flags().BoolVarP(&cli.preserve, "preserve", "p", false,
 		"Preserves the running of the test net after tests are completed")

@@ -65,6 +65,7 @@ type ABCIClient interface {
 // and prove anything about the chain.
 type SignClient interface {
 	Block(ctx context.Context, height *int64) (*ctypes.ResultBlock, error)
+	SignedBlock(ctx context.Context, height *int64) (*ctypes.ResultSignedBlock, error)
 	BlockByHash(ctx context.Context, hash []byte) (*ctypes.ResultBlock, error)
 	BlockResults(ctx context.Context, height *int64) (*ctypes.ResultBlockResults, error)
 	Header(ctx context.Context, height *int64) (*ctypes.ResultHeader, error)
@@ -91,6 +92,21 @@ type SignClient interface {
 		page, perPage *int,
 		orderBy string,
 	) (*ctypes.ResultBlockSearch, error)
+
+	DataCommitment(ctx context.Context, start, end uint64) (*ctypes.ResultDataCommitment, error)
+	DataRootInclusionProof(
+		ctx context.Context,
+		height uint64,
+		start,
+		end uint64,
+	) (*ctypes.ResultDataRootInclusionProof, error)
+
+	// ProveShares
+	// Deprecated: Use ProveSharesV2 instead.
+	ProveShares(_ context.Context, height uint64, startShare uint64, endShare uint64) (types.ShareProof, error)
+	ProveSharesV2(_ context.Context, height uint64, startShare uint64, endShare uint64) (*ctypes.ResultShareProof, error)
+	// TxStatus returns the transaction status for a given transaction hash.
+	TxStatus(ctx context.Context, hash []byte) (*ctypes.ResultTxStatus, error)
 }
 
 // HistoryClient provides access to data from genesis to now in large chunks.

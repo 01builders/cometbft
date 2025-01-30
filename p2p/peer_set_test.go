@@ -25,6 +25,7 @@ func (*mockPeer) NodeInfo() NodeInfo       { return DefaultNodeInfo{} }
 func (*mockPeer) Status() ConnectionStatus { return ConnectionStatus{} }
 func (mp *mockPeer) ID() ID                { return mp.id }
 func (*mockPeer) IsOutbound() bool         { return false }
+func (mp *mockPeer) HasIPChanged() bool    { return false }
 func (*mockPeer) IsPersistent() bool       { return true }
 func (*mockPeer) Get(s string) any         { return s }
 func (*mockPeer) Set(string, any)          {}

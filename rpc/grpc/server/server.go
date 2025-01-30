@@ -8,9 +8,12 @@ import (
 	"google.golang.org/grpc"
 
 	pbblocksvc "github.com/cometbft/cometbft/api/cometbft/services/block/v1"
+	blockapisvc "github.com/cometbft/cometbft/api/cometbft/services/block_api/v1"
 	brs "github.com/cometbft/cometbft/api/cometbft/services/block_results/v1"
 	pbversionsvc "github.com/cometbft/cometbft/api/cometbft/services/version/v1"
 	"github.com/cometbft/cometbft/libs/log"
+	"github.com/cometbft/cometbft/rpc/core"
+	"github.com/cometbft/cometbft/rpc/grpc/server/services/blockapi"
 	"github.com/cometbft/cometbft/rpc/grpc/server/services/blockresultservice"
 	"github.com/cometbft/cometbft/rpc/grpc/server/services/blockservice"
 	"github.com/cometbft/cometbft/rpc/grpc/server/services/versionservice"
@@ -28,6 +31,7 @@ type serverBuilder struct {
 	versionService      pbversionsvc.VersionServiceServer
 	blockService        pbblocksvc.BlockServiceServer
 	blockResultsService brs.BlockResultsServiceServer
+	blockAPI            *blockapi.BlockAPI
 	logger              log.Logger
 	grpcOpts            []grpc.ServerOption
 }
@@ -67,6 +71,13 @@ func WithVersionService() Option {
 func WithBlockService(store *store.BlockStore, eventBus *types.EventBus, logger log.Logger) Option {
 	return func(b *serverBuilder) {
 		b.blockService = blockservice.New(store, eventBus, logger)
+	}
+}
+
+// WithBlockAPIService enables the block API service on the CometBFT server.
+func WithBlockAPIService(env *core.Environment) Option {
+	return func(b *serverBuilder) {
+		b.blockAPI = blockapi.New(env)
 	}
 }
 
@@ -115,6 +126,10 @@ func Serve(listener net.Listener, opts ...Option) error {
 	if b.blockResultsService != nil {
 		brs.RegisterBlockResultsServiceServer(server, b.blockResultsService)
 		b.logger.Debug("Registered block results service")
+	}
+	if b.blockAPI != nil {
+		blockapisvc.RegisterBlockAPIServiceServer(server, b.blockAPI)
+		b.logger.Debug("Registered block api service")
 	}
 	b.logger.Info("serve", "msg", fmt.Sprintf("Starting gRPC server on %s", listener.Addr()))
 	return server.Serve(b.listener)

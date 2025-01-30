@@ -1,6 +1,7 @@
 package bytes
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -28,6 +29,14 @@ func (bz HexBytes) MarshalJSON() ([]byte, error) {
 	copy(jbz[1:], s)
 	jbz[len(jbz)-1] = '"'
 	return jbz, nil
+}
+
+func (bz HexBytes) MarshalDelimited() ([]byte, error) {
+	lenBuf := make([]byte, binary.MaxVarintLen64)
+	length := uint64(len(bz))
+	n := binary.PutUvarint(lenBuf, length)
+
+	return append(lenBuf[:n], bz...), nil
 }
 
 // This is the point of Bytes.
@@ -66,4 +75,8 @@ func (bz HexBytes) Format(s fmt.State, verb rune) {
 			panic(err)
 		}
 	}
+}
+
+func FromBytes(b []byte) []HexBytes {
+	return []HexBytes{b}
 }

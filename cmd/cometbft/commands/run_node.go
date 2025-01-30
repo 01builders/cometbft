@@ -9,6 +9,7 @@ import (
 	"github.com/cometbft/cometbft/crypto/ed25519"
 	kt "github.com/cometbft/cometbft/internal/keytypes"
 	cmtos "github.com/cometbft/cometbft/internal/os"
+	"github.com/cometbft/cometbft/internal/trace"
 	nm "github.com/cometbft/cometbft/node"
 )
 
@@ -89,6 +90,30 @@ func AddNodeFlags(cmd *cobra.Command) {
 		"db_dir",
 		config.DBPath,
 		"database directory")
+
+	cmd.PersistentFlags().String(
+		trace.FlagTracePushConfig,
+		config.Instrumentation.TracePushConfig,
+		trace.FlagTracePushConfigDescription,
+	)
+
+	cmd.PersistentFlags().String(
+		trace.FlagTracePullAddress,
+		config.Instrumentation.TracePullAddress,
+		trace.FlagTracePullAddressDescription,
+	)
+
+	cmd.PersistentFlags().String(
+		trace.FlagPyroscopeURL,
+		config.Instrumentation.PyroscopeURL,
+		trace.FlagPyroscopeURLDescription,
+	)
+
+	cmd.PersistentFlags().Bool(
+		trace.FlagPyroscopeTrace,
+		config.Instrumentation.PyroscopeTrace,
+		trace.FlagPyroscopeTraceDescription,
+	)
 	cmd.Flags().StringVarP(&keyType, "key-type", "k", ed25519.KeyType, fmt.Sprintf("private key type (one of %s)", kt.SupportedKeyTypesStr()))
 }
 
