@@ -134,7 +134,6 @@ func sendTxs(ctx context.Context, cs *State) {
 
 // TestWALCrash uses crashing WAL to test we can recover from any WAL failure.
 func TestWALCrash(t *testing.T) {
-	t.Skip("skipping test")
 	testCases := []struct {
 		name         string
 		initFn       func(dbm.DB, *State, context.Context)

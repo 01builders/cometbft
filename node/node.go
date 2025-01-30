@@ -323,7 +323,6 @@ func NewNodeWithCliParams(ctx context.Context,
 	if config.BaseConfig.DBBackend == "boltdb" || config.BaseConfig.DBBackend == "cleveldb" {
 		logger.Info("WARNING: BoltDB and GoLevelDB are deprecated and will be removed in a future release. Please switch to a different backend.")
 	}
-	fmt.Println("config.GRPC.BlockAPIService.Enabled", config.GRPC.BlockService.Enabled)
 	blockStoreDB, stateDB, err := initDBs(config, dbProvider)
 	if err != nil {
 		return nil, err
@@ -916,7 +915,6 @@ func (n *Node) startRPC() ([]net.Listener, error) {
 		if n.config.GRPC.BlockResultsService.Enabled {
 			opts = append(opts, grpcserver.WithBlockResultsService(n.blockStore, n.stateStore, n.Logger))
 		}
-		fmt.Println("n.config.GRPC.BlockAPIService.Enabled", n.config.GRPC.BlockAPIService)
 		if n.config.GRPC.BlockAPIService.Enabled {
 			opts = append(opts, grpcserver.WithBlockAPIService(env))
 		}
