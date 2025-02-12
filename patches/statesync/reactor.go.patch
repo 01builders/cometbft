@@ -1,0 +1,32 @@
+diff --git a/statesync/reactor.go b/statesync/reactor.go
+index d8aa5b2a7..df10c6f0b 100644
+--- a/statesync/reactor.go
++++ b/statesync/reactor.go
+@@ -24,6 +24,9 @@ const (
+ 	ChunkChannel = byte(0x61)
+ 	// recentSnapshots is the number of recent snapshots to send and receive per peer.
+ 	recentSnapshots = 10
++
++	// ReactorIncomingMessageQueueSize the size of the reactor's message queue.
++	ReactorIncomingMessageQueueSize = 100
+ )
+ 
+ // Reactor handles state sync, both restoring snapshots for the local node and serving snapshots
+@@ -55,7 +58,7 @@ func NewReactor(
+ 		conn:      conn,
+ 		connQuery: connQuery,
+ 	}
+-	r.BaseReactor = *p2p.NewBaseReactor("StateSync", r)
++	r.BaseReactor = *p2p.NewBaseReactor("StateSync", r, p2p.WithIncomingQueueSize(ReactorIncomingMessageQueueSize))
+ 
+ 	return r
+ }
+@@ -103,7 +106,7 @@ func (r *Reactor) RemovePeer(peer p2p.Peer, reason interface{}) {
+ 	}
+ }
+ 
+-// Receive implements p2p.Reactor.
++// ReceiveEnvelope implements p2p.Reactor.
+ func (r *Reactor) ReceiveEnvelope(e p2p.Envelope) {
+ 	if !r.IsRunning() {
+ 		return

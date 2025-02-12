@@ -1,0 +1,13 @@
+diff --git a/libs/os/os.go b/libs/os/os.go
+index 16aa3e68b..f7e3076c0 100644
+--- a/libs/os/os.go
++++ b/libs/os/os.go
+@@ -41,7 +41,7 @@ func Kill() error {
+ }
+ 
+ func Exit(s string) {
+-	fmt.Printf(s + "\n")
++	fmt.Println(s)
+ 	os.Exit(1)
+ }
+ 

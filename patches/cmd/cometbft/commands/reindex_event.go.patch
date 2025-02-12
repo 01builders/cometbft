@@ -1,0 +1,23 @@
+diff --git a/cmd/cometbft/commands/reindex_event.go b/cmd/cometbft/commands/reindex_event.go
+index 5162a62d8..ebce28775 100644
+--- a/cmd/cometbft/commands/reindex_event.go
++++ b/cmd/cometbft/commands/reindex_event.go
+@@ -37,8 +37,8 @@ var ReIndexEventCmd = &cobra.Command{
+ 	Long: `
+ reindex-event is an offline tooling to re-index block and tx events to the eventsinks.
+ You can run this command when the event store backend dropped/disconnected or you want to
+-replace the backend. The default start-height is 0, meaning the tooling will start 
+-reindex from the base block height(inclusive); and the default end-height is 0, meaning 
++replace the backend. The default start-height is 0, meaning the tooling will start
++reindex from the base block height(inclusive); and the default end-height is 0, meaning
+ the tooling will reindex until the latest block height(inclusive). User can omit
+ either or both arguments.
+ 
+@@ -167,6 +167,7 @@ func eventReIndex(cmd *cobra.Command, args eventReIndexArgs) error {
+ 				for i := range b.Data.Txs {
+ 					tr := abcitypes.TxResult{
+ 						Height: b.Height,
++						//nolint:gosec
+ 						Index:  uint32(i),
+ 						Tx:     b.Data.Txs[i],
+ 						Result: *(r.DeliverTxs[i]),

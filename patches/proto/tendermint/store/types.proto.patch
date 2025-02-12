@@ -1,0 +1,20 @@
+diff --git a/proto/tendermint/store/types.proto b/proto/tendermint/store/types.proto
+index af2f97ad0..64a32d1f7 100644
+--- a/proto/tendermint/store/types.proto
++++ b/proto/tendermint/store/types.proto
+@@ -7,3 +7,15 @@ message BlockStoreState {
+   int64 base   = 1;
+   int64 height = 2;
+ }
++
++// TxInfo describes the location of a tx inside a committed block
++// as well as the result of executing the transaction and the error log output.
++message TxInfo {
++  int64  height = 1;
++  uint32 index  = 2;
++  // The response code of executing the tx. 0 means
++  // successfully executed, all others are error codes.
++  uint32 code = 3;
++  // The error log output generated if the transaction execution fails.
++  string error = 4;
++}

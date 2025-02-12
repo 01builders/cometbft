@@ -1,0 +1,99 @@
+diff --git a/mempool/v1/reactor.go b/mempool/v1/reactor.go
+index 8a7ddca69..7e0b22bcf 100644
+--- a/mempool/v1/reactor.go
++++ b/mempool/v1/reactor.go
+@@ -13,6 +13,8 @@ import (
+ 	cmtsync "github.com/tendermint/tendermint/libs/sync"
+ 	"github.com/tendermint/tendermint/mempool"
+ 	"github.com/tendermint/tendermint/p2p"
++	"github.com/tendermint/tendermint/pkg/trace"
++	"github.com/tendermint/tendermint/pkg/trace/schema"
+ 	protomem "github.com/tendermint/tendermint/proto/tendermint/mempool"
+ 	"github.com/tendermint/tendermint/types"
+ )
+@@ -22,9 +24,10 @@ import (
+ // peers you received it from.
+ type Reactor struct {
+ 	p2p.BaseReactor
+-	config  *cfg.MempoolConfig
+-	mempool *TxMempool
+-	ids     *mempoolIDs
++	config      *cfg.MempoolConfig
++	mempool     *TxMempool
++	ids         *mempoolIDs
++	traceClient trace.Tracer
+ }
+ 
+ type mempoolIDs struct {
+@@ -91,11 +94,12 @@ func newMempoolIDs() *mempoolIDs {
+ }
+ 
+ // NewReactor returns a new Reactor with the given config and mempool.
+-func NewReactor(config *cfg.MempoolConfig, mempool *TxMempool) *Reactor {
++func NewReactor(config *cfg.MempoolConfig, mempool *TxMempool, traceClient trace.Tracer) *Reactor {
+ 	memR := &Reactor{
+-		config:  config,
+-		mempool: mempool,
+-		ids:     newMempoolIDs(),
++		config:      config,
++		mempool:     mempool,
++		ids:         newMempoolIDs(),
++		traceClient: traceClient,
+ 	}
+ 	memR.BaseReactor = *p2p.NewBaseReactor("Mempool", memR)
+ 	return memR
+@@ -117,6 +121,22 @@ func (memR *Reactor) OnStart() error {
+ 	if !memR.config.Broadcast {
+ 		memR.Logger.Info("Tx broadcasting is disabled")
+ 	}
++
++	// run a separate go routine to check for time based TTLs
++	if memR.mempool.config.TTLDuration > 0 {
++		go func() {
++			ticker := time.NewTicker(memR.mempool.config.TTLDuration)
++			for {
++				select {
++				case <-ticker.C:
++					memR.mempool.CheckToPurgeExpiredTxs()
++				case <-memR.Quit():
++					return
++				}
++			}
++		}()
++	}
++
+ 	return nil
+ }
+ 
+@@ -173,6 +193,13 @@ func (memR *Reactor) ReceiveEnvelope(e p2p.Envelope) {
+ 		var err error
+ 		for _, tx := range protoTxs {
+ 			ntx := types.Tx(tx)
++			schema.WriteMempoolTx(
++				memR.traceClient,
++				string(e.Src.ID()),
++				ntx.Hash(),
++				len(tx),
++				schema.Download,
++			)
+ 			err = memR.mempool.CheckTx(ntx, nil, txInfo)
+ 			if errors.Is(err, mempool.ErrTxInCache) {
+ 				memR.Logger.Debug("Tx already exists in cache", "tx", ntx.String())
+@@ -269,6 +296,17 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
+ 			if !success {
+ 				time.Sleep(mempool.PeerCatchupSleepIntervalMS * time.Millisecond)
+ 				continue
++			} else {
++				// record that we have sent the peer the transaction
++				// to avoid doing it a second time
++				memTx.SetPeer(peerID)
++				schema.WriteMempoolTx(
++					memR.traceClient,
++					string(peer.ID()),
++					memTx.tx.Hash(),
++					len(memTx.tx),
++					schema.Upload,
++				)
+ 			}
+ 		}
+ 

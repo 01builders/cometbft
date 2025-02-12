@@ -1,0 +1,19 @@
+diff --git a/blockchain/v1/peer_test.go b/blockchain/v1/peer_test.go
+index 1798f13b5..31a7b6f5e 100644
+--- a/blockchain/v1/peer_test.go
++++ b/blockchain/v1/peer_test.go
+@@ -11,6 +11,7 @@ import (
+ 	"github.com/tendermint/tendermint/libs/log"
+ 	cmtrand "github.com/tendermint/tendermint/libs/rand"
+ 	"github.com/tendermint/tendermint/p2p"
++	"github.com/tendermint/tendermint/state/test/factory"
+ 	"github.com/tendermint/tendermint/types"
+ )
+ 
+@@ -276,5 +277,5 @@ func checkByStoppingPeerTimer(t *testing.T, peer *BpPeer, running bool) {
+ }
+ 
+ func makeSmallBlock(height int) *types.Block {
+-	return types.MakeBlock(int64(height), []types.Tx{types.Tx("foo")}, nil, nil)
++	return types.MakeBlock(int64(height), factory.MakeData([]types.Tx{types.Tx("foo")}), nil, nil)
+ }
