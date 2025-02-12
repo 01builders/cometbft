@@ -1,0 +1,112 @@
+diff --git a/state/state.go b/state/state.go
+index 5fea7d224..3354f3eb4 100644
+--- a/state/state.go
++++ b/state/state.go
+@@ -24,16 +24,15 @@ var (
+ 
+ //-----------------------------------------------------------------------------
+ 
+-// InitStateVersion sets the Consensus.Block and Software versions,
+-// but leaves the Consensus.App version blank.
+-// The Consensus.App version will be set during the Handshake, once
+-// we hear from the app what protocol version it is running.
+-var InitStateVersion = cmtstate.Version{
+-	Consensus: cmtversion.Consensus{
+-		Block: version.BlockProtocol,
+-		App:   0,
+-	},
+-	Software: version.TMCoreSemVer,
++// InitStateVersion sets the Consensus.Block, Consensus.App and Software versions
++func InitStateVersion(appVersion uint64) cmtstate.Version {
++	return cmtstate.Version{
++		Consensus: cmtversion.Consensus{
++			Block: version.BlockProtocol,
++			App:   appVersion,
++		},
++		Software: version.TMCoreSemVer,
++	}
+ }
+ 
+ //-----------------------------------------------------------------------------
+@@ -78,6 +77,10 @@ type State struct {
+ 
+ 	// the latest AppHash we've received from calling abci.Commit()
+ 	AppHash []byte
++
++	// timeouts received from app, after ABCI EndBlock call, to be used in the next height
++	TimeoutPropose time.Duration
++	TimeoutCommit  time.Duration
+ }
+ 
+ // Copy makes a copy of the State for mutating.
+@@ -102,6 +105,9 @@ func (state State) Copy() State {
+ 		AppHash: state.AppHash,
+ 
+ 		LastResultsHash: state.LastResultsHash,
++
++		TimeoutCommit:  state.TimeoutCommit,
++		TimeoutPropose: state.TimeoutPropose,
+ 	}
+ }
+ 
+@@ -171,6 +177,9 @@ func (state *State) ToProto() (*cmtstate.State, error) {
+ 	sm.LastResultsHash = state.LastResultsHash
+ 	sm.AppHash = state.AppHash
+ 
++	sm.Timeouts.TimeoutPropose = state.TimeoutPropose
++	sm.Timeouts.TimeoutCommit = state.TimeoutCommit
++
+ 	return sm, nil
+ }
+ 
+@@ -221,6 +230,8 @@ func FromProto(pb *cmtstate.State) (*State, error) { //nolint:golint
+ 	state.LastHeightConsensusParamsChanged = pb.LastHeightConsensusParamsChanged
+ 	state.LastResultsHash = pb.LastResultsHash
+ 	state.AppHash = pb.AppHash
++	state.TimeoutCommit = pb.Timeouts.TimeoutCommit
++	state.TimeoutPropose = pb.Timeouts.TimeoutPropose
+ 
+ 	return state, nil
+ }
+@@ -233,13 +244,13 @@ func FromProto(pb *cmtstate.State) (*State, error) { //nolint:golint
+ // track rounds, and hence does not know the correct proposer. TODO: fix this!
+ func (state State) MakeBlock(
+ 	height int64,
+-	txs []types.Tx,
++	data types.Data,
+ 	commit *types.Commit,
+ 	evidence []types.Evidence,
+ 	proposerAddress []byte,
+ ) (*types.Block, *types.PartSet) {
+ 	// Build base block with block data.
+-	block := types.MakeBlock(height, txs, commit, evidence)
++	block := types.MakeBlock(height, data, commit, evidence)
+ 
+ 	// Set time.
+ 	var timestamp time.Time
+@@ -332,8 +343,10 @@ func MakeGenesisState(genDoc *types.GenesisDoc) (State, error) {
+ 		nextValidatorSet = types.NewValidatorSet(validators).CopyIncrementProposerPriority(1)
+ 	}
+ 
++	appVersion := getAppVersion(genDoc)
++
+ 	return State{
+-		Version:       InitStateVersion,
++		Version:       InitStateVersion(appVersion),
+ 		ChainID:       genDoc.ChainID,
+ 		InitialHeight: genDoc.InitialHeight,
+ 
+@@ -352,3 +365,13 @@ func MakeGenesisState(genDoc *types.GenesisDoc) (State, error) {
+ 		AppHash: genDoc.AppHash,
+ 	}, nil
+ }
++
++func getAppVersion(genDoc *types.GenesisDoc) uint64 {
++	if genDoc.ConsensusParams != nil &&
++		genDoc.ConsensusParams.Version.AppVersion != 0 {
++		return genDoc.ConsensusParams.Version.AppVersion
++	}
++	// Default to app version 1 because some chains (e.g. mocha-4) did not set
++	// an explicit app version in genesis.json.
++	return uint64(1)
++}

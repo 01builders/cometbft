@@ -1,0 +1,93 @@
+diff --git a/state/txindex/kv/kv.go b/state/txindex/kv/kv.go
+index 8ed57934d..e6d5d164e 100644
+--- a/state/txindex/kv/kv.go
++++ b/state/txindex/kv/kv.go
+@@ -73,26 +73,7 @@ func (txi *TxIndex) AddBatch(b *txindex.Batch) error {
+ 	defer storeBatch.Close()
+ 
+ 	for _, result := range b.Ops {
+-		hash := types.Tx(result.Tx).Hash()
+-
+-		// index tx by events
+-		err := txi.indexEvents(result, hash, storeBatch)
+-		if err != nil {
+-			return err
+-		}
+-
+-		// index by height (always)
+-		err = storeBatch.Set(keyForHeight(result), hash)
+-		if err != nil {
+-			return err
+-		}
+-
+-		rawBytes, err := proto.Marshal(result)
+-		if err != nil {
+-			return err
+-		}
+-		// index by hash (always)
+-		err = storeBatch.Set(hash, rawBytes)
++		err := txi.indexResult(storeBatch, result)
+ 		if err != nil {
+ 			return err
+ 		}
+@@ -181,6 +162,47 @@ func (txi *TxIndex) indexEvents(result *abci.TxResult, hash []byte, store dbm.Ba
+ 	return nil
+ }
+ 
++func (txi *TxIndex) indexResult(batch dbm.Batch, result *abci.TxResult) error {
++	hash := types.Tx(result.Tx).Hash()
++
++	rawBytes, err := proto.Marshal(result)
++	if err != nil {
++		return err
++	}
++
++	if !result.Result.IsOK() {
++		oldResult, err := txi.Get(hash)
++		if err != nil {
++			return err
++		}
++
++		// if the new transaction failed and it's already indexed in an older block and was successful
++		// we skip it as we want users to get the older successful transaction when they query.
++		if oldResult != nil && oldResult.Result.Code == abci.CodeTypeOK {
++			return nil
++		}
++	}
++
++	// index tx by events
++	err = txi.indexEvents(result, hash, batch)
++	if err != nil {
++		return err
++	}
++
++	// index by height (always)
++	err = batch.Set(keyForHeight(result), hash)
++	if err != nil {
++		return err
++	}
++
++	// index by hash (always)
++	err = batch.Set(hash, rawBytes)
++	if err != nil {
++		return err
++	}
++	return nil
++}
++
+ // Search performs a search using the given query.
+ //
+ // It breaks the query into conditions (like "tx.height > 5"). For each
+@@ -360,7 +382,11 @@ func (txi *TxIndex) setTmpHashes(tmpHeights map[string][]byte, it dbm.Iterator,
+ 		eventSeq := extractEventSeqFromKey(it.Key())
+ 		tmpHeights[string(it.Value())+eventSeq] = it.Value()
+ 	} else {
+-		tmpHeights[string(it.Value())] = it.Value()
++		// Copy it.Value() to ensure tmpHeights stores independent values, as iterators reuse
++		// the same memory for it.Value(), causing overwrites on each iteration.
++		valueCopy := make([]byte, len(it.Value()))
++		copy(valueCopy, it.Value())
++		tmpHeights[string(it.Value())] = valueCopy
+ 	}
+ }
+ 

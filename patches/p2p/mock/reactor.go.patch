@@ -1,0 +1,13 @@
+diff --git a/p2p/mock/reactor.go b/p2p/mock/reactor.go
+index 8443ac8f1..197c8606a 100644
+--- a/p2p/mock/reactor.go
++++ b/p2p/mock/reactor.go
+@@ -14,7 +14,7 @@ type Reactor struct {
+ 
+ func NewReactor() *Reactor {
+ 	r := &Reactor{}
+-	r.BaseReactor = *p2p.NewBaseReactor("Mock-PEX", r)
++	r.BaseReactor = *p2p.NewBaseReactor("Mock-PEX", r, p2p.WithIncomingQueueSize(1))
+ 	r.SetLogger(log.TestingLogger())
+ 	return r
+ }

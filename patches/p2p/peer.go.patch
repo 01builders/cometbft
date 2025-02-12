@@ -1,0 +1,218 @@
+diff --git a/p2p/peer.go b/p2p/peer.go
+index 49c0dd4e4..1c92670ee 100644
+--- a/p2p/peer.go
++++ b/p2p/peer.go
+@@ -3,7 +3,6 @@ package p2p
+ import (
+ 	"fmt"
+ 	"net"
+-	"reflect"
+ 	"time"
+ 
+ 	"github.com/gogo/protobuf/proto"
+@@ -11,6 +10,8 @@ import (
+ 	"github.com/tendermint/tendermint/libs/cmap"
+ 	"github.com/tendermint/tendermint/libs/log"
+ 	"github.com/tendermint/tendermint/libs/service"
++	"github.com/tendermint/tendermint/pkg/trace"
++	"github.com/tendermint/tendermint/pkg/trace/schema"
+ 
+ 	cmtconn "github.com/tendermint/tendermint/p2p/conn"
+ )
+@@ -30,6 +31,8 @@ type Peer interface {
+ 	IsOutbound() bool   // did we dial the peer
+ 	IsPersistent() bool // do we redial this peer when we disconnect
+ 
++	HasIPChanged() bool // has the peer's IP changed
++
+ 	CloseConn() error // close original connection
+ 
+ 	NodeInfo() NodeInfo // peer's info
+@@ -51,6 +54,13 @@ type Peer interface {
+ 	GetRemovalFailed() bool
+ }
+ 
++type IntrospectivePeer interface {
++	Peer
++	Metrics() *Metrics
++	ValueToMetricLabel(i any) string
++	TraceClient() trace.Tracer
++}
++
+ type EnvelopeSender interface {
+ 	SendEnvelope(Envelope) bool
+ 	TrySendEnvelope(Envelope) bool
+@@ -175,6 +185,7 @@ type peer struct {
+ 	Data *cmap.CMap
+ 
+ 	metrics       *Metrics
++	traceClient   trace.Tracer
+ 	metricsTicker *time.Ticker
+ 	mlc           *metricsLabelCache
+ 
+@@ -182,14 +193,24 @@ type peer struct {
+ 	removalAttemptFailed bool
+ }
+ 
++func (p *peer) TraceClient() trace.Tracer {
++	return p.traceClient
++}
++
+ type PeerOption func(*peer)
+ 
++func WithPeerTracer(t trace.Tracer) PeerOption {
++	return func(p *peer) {
++		p.traceClient = t
++	}
++}
++
+ func newPeer(
+ 	pc peerConn,
+ 	mConfig cmtconn.MConnConfig,
+ 	nodeInfo NodeInfo,
+ 	reactorsByCh map[byte]Reactor,
+-	msgTypeByChID map[byte]proto.Message,
++	_ map[byte]proto.Message,
+ 	chDescs []*cmtconn.ChannelDescriptor,
+ 	onPeerError func(Peer, interface{}),
+ 	mlc *metricsLabelCache,
+@@ -203,13 +224,13 @@ func newPeer(
+ 		metricsTicker: time.NewTicker(metricsTickerDuration),
+ 		metrics:       NopMetrics(),
+ 		mlc:           mlc,
++		traceClient:   trace.NoOpTracer(),
+ 	}
+ 
+ 	p.mconn = createMConnection(
+ 		pc.conn,
+ 		p,
+ 		reactorsByCh,
+-		msgTypeByChID,
+ 		chDescs,
+ 		onPeerError,
+ 		mConfig,
+@@ -234,6 +255,14 @@ func (p *peer) String() string {
+ //---------------------------------------------------
+ // Implements service.Service
+ 
++func (p *peer) Metrics() *Metrics {
++	return p.metrics
++}
++
++func (p *peer) ValueToMetricLabel(i any) string {
++	return p.mlc.ValueToMetricLabel(i)
++}
++
+ // SetLogger implements BaseService.
+ func (p *peer) SetLogger(l log.Logger) {
+ 	p.Logger = l
+@@ -290,6 +319,18 @@ func (p *peer) IsPersistent() bool {
+ 	return p.peerConn.persistent
+ }
+ 
++// HasIPChanged returns true and the new IP if the peer's IP has changed.
++func (p *peer) HasIPChanged() bool {
++	oldIP := p.ip
++	if oldIP == nil {
++		return false
++	}
++	// Reset the IP so we can get the new one
++	p.ip = nil
++	newIP := p.RemoteIP()
++	return !oldIP.Equal(newIP)
++}
++
+ // NodeInfo returns a copy of the peer's NodeInfo.
+ func (p *peer) NodeInfo() NodeInfo {
+ 	return p.nodeInfo
+@@ -331,7 +372,12 @@ func (p *peer) SendEnvelope(e Envelope) bool {
+ 	}
+ 	res := p.Send(e.ChannelID, msgBytes)
+ 	if res {
+-		p.metrics.MessageSendBytesTotal.With("message_type", metricLabelValue).Add(float64(len(msgBytes)))
++		labels := []string{
++			"message_type", metricLabelValue,
++			"chID", fmt.Sprintf("%#x", e.ChannelID),
++			"peer_id", string(p.ID()),
++		}
++		p.metrics.MessageSendBytesTotal.With(labels...).Add(float64(len(msgBytes)))
+ 	}
+ 	return res
+ }
+@@ -380,7 +426,12 @@ func (p *peer) TrySendEnvelope(e Envelope) bool {
+ 	}
+ 	res := p.TrySend(e.ChannelID, msgBytes)
+ 	if res {
+-		p.metrics.MessageSendBytesTotal.With("message_type", metricLabelValue).Add(float64(len(msgBytes)))
++		labels := []string{
++			"message_type", metricLabelValue,
++			"chID", fmt.Sprintf("%#x", e.ChannelID),
++			"peer_id", string(p.ID()),
++		}
++		p.metrics.MessageSendBytesTotal.With(labels...).Add(float64(len(msgBytes)))
+ 	}
+ 	return res
+ }
+@@ -484,11 +535,14 @@ func (p *peer) metricsReporter() {
+ 		case <-p.metricsTicker.C:
+ 			status := p.mconn.Status()
+ 			var sendQueueSize float64
++			queues := make(map[byte]int, len(status.Channels))
+ 			for _, chStatus := range status.Channels {
+ 				sendQueueSize += float64(chStatus.SendQueueSize)
++				queues[chStatus.ID] = chStatus.SendQueueSize
+ 			}
+ 
+ 			p.metrics.PeerPendingSendBytes.With("peer_id", string(p.ID())).Set(sendQueueSize)
++			schema.WritePendingBytes(p.traceClient, string(p.ID()), queues)
+ 		case <-p.Quit():
+ 			return
+ 		}
+@@ -502,7 +556,6 @@ func createMConnection(
+ 	conn net.Conn,
+ 	p *peer,
+ 	reactorsByCh map[byte]Reactor,
+-	msgTypeByChID map[byte]proto.Message,
+ 	chDescs []*cmtconn.ChannelDescriptor,
+ 	onPeerError func(Peer, interface{}),
+ 	config cmtconn.MConnConfig,
+@@ -515,33 +568,12 @@ func createMConnection(
+ 			// which does onPeerError.
+ 			panic(fmt.Sprintf("Unknown channel %X", chID))
+ 		}
+-		mt := msgTypeByChID[chID]
+-		msg := proto.Clone(mt)
+-		err := proto.Unmarshal(msgBytes, msg)
+-		if err != nil {
+-			panic(fmt.Errorf("unmarshaling message: %s into type: %s", err, reflect.TypeOf(mt)))
+-		}
+-		labels := []string{
+-			"peer_id", string(p.ID()),
+-			"chID", fmt.Sprintf("%#x", chID),
+-		}
+-		if w, ok := msg.(Unwrapper); ok {
+-			msg, err = w.Unwrap()
+-			if err != nil {
+-				panic(fmt.Errorf("unwrapping message: %s", err))
+-			}
+-		}
+-		p.metrics.PeerReceiveBytesTotal.With(labels...).Add(float64(len(msgBytes)))
+-		p.metrics.MessageReceiveBytesTotal.With("message_type", p.mlc.ValueToMetricLabel(msg)).Add(float64(len(msgBytes)))
+-		if nr, ok := reactor.(EnvelopeReceiver); ok {
+-			nr.ReceiveEnvelope(Envelope{
+-				ChannelID: chID,
+-				Src:       p,
+-				Message:   msg,
+-			})
+-		} else {
+-			reactor.Receive(chID, p, msgBytes)
+-		}
++
++		reactor.QueueUnprocessedEnvelope(UnprocessedEnvelope{
++			ChannelID: chID,
++			Src:       p,
++			Message:   msgBytes,
++		})
+ 	}
+ 
+ 	onError := func(r interface{}) {

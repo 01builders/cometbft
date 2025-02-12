@@ -1,0 +1,12 @@
+diff --git a/evidence/reactor_test.go b/evidence/reactor_test.go
+index ad62cf4ec..4b723b5f8 100644
+--- a/evidence/reactor_test.go
++++ b/evidence/reactor_test.go
+@@ -224,6 +224,7 @@ func TestReactorBroadcastEvidenceMemoryLeak(t *testing.T) {
+ 	r.AddPeer(p)
+ 
+ 	_ = sendEvidence(t, pool, val, 2)
++	r.OnStop()
+ }
+ 
+ // evidenceLogger is a TestingLogger which uses a different

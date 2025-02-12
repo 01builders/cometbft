@@ -1,0 +1,460 @@
+diff --git a/node/node.go b/node/node.go
+index ae16caca8..810d3264d 100644
+--- a/node/node.go
++++ b/node/node.go
+@@ -11,9 +11,11 @@ import (
+ 	"time"
+ 
+ 	dbm "github.com/cometbft/cometbft-db"
++	"github.com/grafana/pyroscope-go"
+ 	"github.com/prometheus/client_golang/prometheus"
+ 	"github.com/prometheus/client_golang/prometheus/promhttp"
+ 	"github.com/rs/cors"
++	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+ 
+ 	abci "github.com/tendermint/tendermint/abci/types"
+ 	bcv0 "github.com/tendermint/tendermint/blockchain/v0"
+@@ -23,6 +25,7 @@ import (
+ 	cs "github.com/tendermint/tendermint/consensus"
+ 	"github.com/tendermint/tendermint/crypto"
+ 	"github.com/tendermint/tendermint/evidence"
++	"github.com/tendermint/tendermint/pkg/trace"
+ 
+ 	cmtjson "github.com/tendermint/tendermint/libs/json"
+ 	"github.com/tendermint/tendermint/libs/log"
+@@ -30,6 +33,7 @@ import (
+ 	"github.com/tendermint/tendermint/libs/service"
+ 	"github.com/tendermint/tendermint/light"
+ 	mempl "github.com/tendermint/tendermint/mempool"
++	mempoolv2 "github.com/tendermint/tendermint/mempool/cat"
+ 	mempoolv0 "github.com/tendermint/tendermint/mempool/v0"
+ 	mempoolv1 "github.com/tendermint/tendermint/mempool/v1"
+ 	"github.com/tendermint/tendermint/p2p"
+@@ -115,17 +119,17 @@ func DefaultNewNode(config *cfg.Config, logger log.Logger) (*Node, error) {
+ }
+ 
+ // MetricsProvider returns a consensus, p2p and mempool Metrics.
+-type MetricsProvider func(chainID string) (*cs.Metrics, *p2p.Metrics, *mempl.Metrics, *sm.Metrics)
++type MetricsProvider func(chainID, softwareVersion string) (*cs.Metrics, *p2p.Metrics, *mempl.Metrics, *sm.Metrics)
+ 
+ // DefaultMetricsProvider returns Metrics build using Prometheus client library
+ // if Prometheus is enabled. Otherwise, it returns no-op Metrics.
+ func DefaultMetricsProvider(config *cfg.InstrumentationConfig) MetricsProvider {
+-	return func(chainID string) (*cs.Metrics, *p2p.Metrics, *mempl.Metrics, *sm.Metrics) {
++	return func(chainID, softwareVersion string) (*cs.Metrics, *p2p.Metrics, *mempl.Metrics, *sm.Metrics) {
+ 		if config.Prometheus {
+-			return cs.PrometheusMetrics(config.Namespace, "chain_id", chainID),
+-				p2p.PrometheusMetrics(config.Namespace, "chain_id", chainID),
+-				mempl.PrometheusMetrics(config.Namespace, "chain_id", chainID),
+-				sm.PrometheusMetrics(config.Namespace, "chain_id", chainID)
++			return cs.PrometheusMetrics(config.Namespace, "chain_id", chainID, "version", softwareVersion),
++				p2p.PrometheusMetrics(config.Namespace, "chain_id", chainID, "version", softwareVersion),
++				mempl.PrometheusMetrics(config.Namespace, "chain_id", chainID, "version", softwareVersion),
++				sm.PrometheusMetrics(config.Namespace, "chain_id", chainID, "version", softwareVersion)
+ 		}
+ 		return cs.NopMetrics(), p2p.NopMetrics(), mempl.NopMetrics(), sm.NopMetrics()
+ 	}
+@@ -230,6 +234,9 @@ type Node struct {
+ 	blockIndexer      indexer.BlockIndexer
+ 	indexerService    *txindex.IndexerService
+ 	prometheusSrv     *http.Server
++	tracer            trace.Tracer
++	pyroscopeProfiler *pyroscope.Profiler
++	pyroscopeTracer   *sdktrace.TracerProvider
+ }
+ 
+ func initDBs(config *cfg.Config, dbProvider DBProvider) (blockStore *store.BlockStore, stateDB dbm.DB, err error) {
+@@ -323,14 +330,11 @@ func doHandshake(
+ 	eventBus types.BlockEventPublisher,
+ 	proxyApp proxy.AppConns,
+ 	consensusLogger log.Logger,
+-) error {
++) (string, error) {
+ 	handshaker := cs.NewHandshaker(stateStore, state, blockStore, genDoc)
+ 	handshaker.SetLogger(consensusLogger)
+ 	handshaker.SetEventBus(eventBus)
+-	if err := handshaker.HandshakeWithContext(ctx, proxyApp); err != nil {
+-		return fmt.Errorf("error during handshake: %v", err)
+-	}
+-	return nil
++	return handshaker.Handshake(proxyApp)
+ }
+ 
+ func logNodeStartupInfo(state sm.State, pubKey crypto.PubKey, logger, consensusLogger log.Logger) {
+@@ -374,8 +378,39 @@ func createMempoolAndMempoolReactor(
+ 	state sm.State,
+ 	memplMetrics *mempl.Metrics,
+ 	logger log.Logger,
++	traceClient trace.Tracer,
+ ) (mempl.Mempool, p2p.Reactor) {
+ 	switch config.Mempool.Version {
++	case cfg.MempoolV2:
++		mp := mempoolv2.NewTxPool(
++			logger,
++			config.Mempool,
++			proxyApp.Mempool(),
++			state.LastBlockHeight,
++			mempoolv2.WithMetrics(memplMetrics),
++			mempoolv2.WithPreCheck(sm.TxPreCheck(state)),
++			mempoolv2.WithPostCheck(sm.TxPostCheck(state)),
++		)
++
++		reactor, err := mempoolv2.NewReactor(
++			mp,
++			&mempoolv2.ReactorOptions{
++				ListenOnly:     !config.Mempool.Broadcast,
++				MaxTxSize:      config.Mempool.MaxTxBytes,
++				TraceClient:    traceClient,
++				MaxGossipDelay: config.Mempool.MaxGossipDelay,
++			},
++		)
++		if err != nil {
++			// TODO: find a more polite way of handling this error
++			panic(err)
++		}
++		if config.Consensus.WaitForTxs() {
++			mp.EnableTxsAvailable()
++		}
++		reactor.SetLogger(logger)
++
++		return mp, reactor
+ 	case cfg.MempoolV1:
+ 		mp := mempoolv1.NewTxMempool(
+ 			logger,
+@@ -385,15 +420,18 @@ func createMempoolAndMempoolReactor(
+ 			mempoolv1.WithMetrics(memplMetrics),
+ 			mempoolv1.WithPreCheck(sm.TxPreCheck(state)),
+ 			mempoolv1.WithPostCheck(sm.TxPostCheck(state)),
++			mempoolv1.WithTraceClient(traceClient),
+ 		)
+ 
+ 		reactor := mempoolv1.NewReactor(
+ 			config.Mempool,
+ 			mp,
++			traceClient,
+ 		)
+ 		if config.Consensus.WaitForTxs() {
+ 			mp.EnableTxsAvailable()
+ 		}
++		reactor.SetLogger(logger)
+ 
+ 		return mp, reactor
+ 
+@@ -416,6 +454,7 @@ func createMempoolAndMempoolReactor(
+ 		if config.Consensus.WaitForTxs() {
+ 			mp.EnableTxsAvailable()
+ 		}
++		reactor.SetLogger(logger)
+ 
+ 		return mp, reactor
+ 
+@@ -476,6 +515,7 @@ func createConsensusReactor(config *cfg.Config,
+ 	waitSync bool,
+ 	eventBus *types.EventBus,
+ 	consensusLogger log.Logger,
++	traceClient trace.Tracer,
+ ) (*cs.Reactor, *cs.State) {
+ 	consensusState := cs.NewState(
+ 		config.Consensus,
+@@ -485,12 +525,18 @@ func createConsensusReactor(config *cfg.Config,
+ 		mempool,
+ 		evidencePool,
+ 		cs.StateMetrics(csMetrics),
++		cs.SetTraceClient(traceClient),
+ 	)
+ 	consensusState.SetLogger(consensusLogger)
+ 	if privValidator != nil {
+ 		consensusState.SetPrivValidator(privValidator)
+ 	}
+-	consensusReactor := cs.NewReactor(consensusState, waitSync, cs.ReactorMetrics(csMetrics))
++	consensusReactor := cs.NewReactor(
++		consensusState,
++		waitSync,
++		cs.ReactorMetrics(csMetrics),
++		cs.ReactorTracing(traceClient),
++	)
+ 	consensusReactor.SetLogger(consensusLogger)
+ 	// services which will be publishing and/or subscribing for messages (events)
+ 	// consensusReactor will set it on consensusState and blockExecutor
+@@ -503,13 +549,14 @@ func createTransport(
+ 	nodeInfo p2p.NodeInfo,
+ 	nodeKey *p2p.NodeKey,
+ 	proxyApp proxy.AppConns,
++	tracer trace.Tracer,
+ ) (
+ 	*p2p.MultiplexTransport,
+ 	[]p2p.PeerFilterFunc,
+ ) {
+ 	var (
+ 		mConnConfig = p2p.MConnConfig(config.P2P)
+-		transport   = p2p.NewMultiplexTransport(nodeInfo, *nodeKey, mConnConfig)
++		transport   = p2p.NewMultiplexTransport(nodeInfo, *nodeKey, mConnConfig, tracer)
+ 		connFilters = []p2p.ConnFilterFunc{}
+ 		peerFilters = []p2p.PeerFilterFunc{}
+ 	)
+@@ -579,12 +626,14 @@ func createSwitch(config *cfg.Config,
+ 	nodeInfo p2p.NodeInfo,
+ 	nodeKey *p2p.NodeKey,
+ 	p2pLogger log.Logger,
++	tracer trace.Tracer,
+ ) *p2p.Switch {
+ 	sw := p2p.NewSwitch(
+ 		config.P2P,
+ 		transport,
+ 		p2p.WithMetrics(p2pMetrics),
+ 		p2p.SwitchPeerFilters(peerFilters...),
++		p2p.WithTracer(tracer),
+ 	)
+ 	sw.SetLogger(p2pLogger)
+ 	sw.AddReactor("MEMPOOL", mempoolReactor)
+@@ -716,6 +765,10 @@ func NewNode(config *cfg.Config,
+ 	logger log.Logger,
+ 	options ...Option,
+ ) (*Node, error) {
++	if err := config.ValidateBasic(); err != nil {
++		return nil, fmt.Errorf("invalid config: %w", err)
++	}
++
+ 	return NewNodeWithContext(context.TODO(), config, privValidator,
+ 		nodeKey, clientCreator, genesisDocProvider, dbProvider,
+ 		metricsProvider, logger, options...)
+@@ -793,30 +846,54 @@ func NewNodeWithContext(ctx context.Context,
+ 	// Create the handshaker, which calls RequestInfo, sets the AppVersion on the state,
+ 	// and replays any blocks as necessary to sync CometBFT with the app.
+ 	consensusLogger := logger.With("module", "consensus")
++	var softwareVersion string
+ 	if !stateSync {
+-		if err := doHandshake(ctx, stateStore, state, blockStore, genDoc, eventBus, proxyApp, consensusLogger); err != nil {
++		softwareVersion, err = doHandshake(context.TODO(), stateStore, state, blockStore, genDoc, eventBus, proxyApp, consensusLogger)
++		if err != nil {
+ 			return nil, err
+ 		}
+ 
+ 		// Reload the state. It will have the Version.Consensus.App set by the
+-		// Handshake, and may have other modifications as well (ie. depending on
++		// Handshake, and may have other modifications as well (i.e., depending on
+ 		// what happened during block replay).
+ 		state, err = stateStore.Load()
++		logger.Info("Loaded state after doHandshake", "height",
++			state.LastBlockHeight, "app_version",
++			state.Version.Consensus.App, "timeout_commit", state.TimeoutCommit, "timeout_propose", state.TimeoutPropose)
+ 		if err != nil {
++			logger.Info("Error loading state after doHandshake", "err", err)
+ 			return nil, fmt.Errorf("cannot load state: %w", err)
+ 		}
++	} else {
++		logger.Info("Skipping handshake, Starting state sync")
++		resp, err := proxyApp.Query().InfoSync(proxy.RequestInfo)
++		if err != nil {
++			return nil, fmt.Errorf("error during info call: %w", err)
++		}
++		softwareVersion = resp.Version
+ 	}
+ 
+ 	// Determine whether we should do fast sync. This must happen after the handshake, since the
+-	// app may modify the validator set, specifying ourself as the only validator.
++	// app may modify the validator set, specifying ourselves as the only validator.
+ 	fastSync := config.FastSyncMode && !onlyValidatorIsUs(state, pubKey)
+ 
+ 	logNodeStartupInfo(state, pubKey, logger, consensusLogger)
+ 
+-	csMetrics, p2pMetrics, memplMetrics, smMetrics := metricsProvider(genDoc.ChainID)
++	csMetrics, p2pMetrics, memplMetrics, smMetrics := metricsProvider(genDoc.ChainID, softwareVersion)
++
++	// create an optional tracer client to collect trace data.
++	tracer, err := trace.NewTracer(
++		config,
++		logger,
++		genDoc.ChainID,
++		string(nodeKey.ID()),
++	)
++	if err != nil {
++		return nil, err
++	}
+ 
+ 	// Make MempoolReactor
+-	mempool, mempoolReactor := createMempoolAndMempoolReactor(config, proxyApp, state, memplMetrics, logger)
++	mempool, mempoolReactor := createMempoolAndMempoolReactor(config, proxyApp, state, memplMetrics, logger, tracer)
+ 
+ 	// Make Evidence Reactor
+ 	evidenceReactor, evidencePool, err := createEvidenceReactor(config, dbProvider, stateDB, blockStore, logger)
+@@ -832,6 +909,7 @@ func NewNodeWithContext(ctx context.Context,
+ 		mempool,
+ 		evidencePool,
+ 		sm.BlockExecutorWithMetrics(smMetrics),
++		sm.WithBlockStore(blockStore),
+ 	)
+ 
+ 	// Make BlockchainReactor. Don't start fast sync if we're doing a state sync first.
+@@ -849,9 +927,10 @@ func NewNodeWithContext(ctx context.Context,
+ 	}
+ 	consensusReactor, consensusState := createConsensusReactor(
+ 		config, state, blockExec, blockStore, mempool, evidencePool,
+-		privValidator, csMetrics, stateSync || fastSync, eventBus, consensusLogger,
++		privValidator, csMetrics, stateSync || fastSync, eventBus, consensusLogger, tracer,
+ 	)
+ 
++	logger.Info("Consensus reactor created", "timeout_propose", consensusState.GetState().TimeoutPropose, "timeout_commit", consensusState.GetState().TimeoutCommit)
+ 	// Set up state sync reactor, and schedule a sync if requested.
+ 	// FIXME The way we do phased startups (e.g. replay -> fast sync -> consensus) is very messy,
+ 	// we should clean this whole thing up. See:
+@@ -864,19 +943,19 @@ func NewNodeWithContext(ctx context.Context,
+ 	)
+ 	stateSyncReactor.SetLogger(logger.With("module", "statesync"))
+ 
+-	nodeInfo, err := makeNodeInfo(config, nodeKey, txIndexer, genDoc, state)
++	nodeInfo, err := makeNodeInfo(config, nodeKey, txIndexer, genDoc, state, softwareVersion)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 
+ 	// Setup Transport.
+-	transport, peerFilters := createTransport(config, nodeInfo, nodeKey, proxyApp)
++	transport, peerFilters := createTransport(config, nodeInfo, nodeKey, proxyApp, tracer)
+ 
+ 	// Setup Switch.
+ 	p2pLogger := logger.With("module", "p2p")
+ 	sw := createSwitch(
+ 		config, transport, p2pMetrics, peerFilters, mempoolReactor, bcReactor,
+-		stateSyncReactor, consensusReactor, evidenceReactor, nodeInfo, nodeKey, p2pLogger,
++		stateSyncReactor, consensusReactor, evidenceReactor, nodeInfo, nodeKey, p2pLogger, tracer,
+ 	)
+ 
+ 	err = sw.AddPersistentPeers(splitAndTrimEmpty(config.P2P.PersistentPeers, ",", " "))
+@@ -947,6 +1026,7 @@ func NewNodeWithContext(ctx context.Context,
+ 		indexerService:   indexerService,
+ 		blockIndexer:     blockIndexer,
+ 		eventBus:         eventBus,
++		tracer:           tracer,
+ 	}
+ 	node.BaseService = *service.NewBaseService(logger, "Node", node)
+ 
+@@ -970,7 +1050,7 @@ func (n *Node) OnStart() error {
+ 	n.addrBook.AddPrivateIDs(splitAndTrimEmpty(n.config.P2P.PrivatePeerIDs, ",", " "))
+ 
+ 	// Start the RPC server before the P2P server
+-	// so we can eg. receive txs for the first block
++	// so we can e.g., receive txs for the first block
+ 	if n.config.RPC.ListenAddress != "" {
+ 		listeners, err := n.startRPC()
+ 		if err != nil {
+@@ -984,6 +1064,18 @@ func (n *Node) OnStart() error {
+ 		n.prometheusSrv = n.startPrometheusServer(n.config.Instrumentation.PrometheusListenAddr)
+ 	}
+ 
++	if n.config.Instrumentation.PyroscopeURL != "" {
++		profiler, tracer, err := setupPyroscope(
++			n.config.Instrumentation,
++			string(n.nodeKey.ID()),
++		)
++		if err != nil {
++			return err
++		}
++		n.pyroscopeProfiler = profiler
++		n.pyroscopeTracer = tracer
++	}
++
+ 	// Start the transport.
+ 	addr, err := p2p.NewNetAddressString(p2p.IDAddressString(n.nodeKey.ID(), n.config.P2P.ListenAddress))
+ 	if err != nil {
+@@ -1068,18 +1160,37 @@ func (n *Node) OnStop() {
+ 			n.Logger.Error("Prometheus HTTP server Shutdown", "err", err)
+ 		}
+ 	}
++
+ 	if n.blockStore != nil {
+ 		n.Logger.Info("Closing blockstore")
+ 		if err := n.blockStore.Close(); err != nil {
+ 			n.Logger.Error("problem closing blockstore", "err", err)
+ 		}
+ 	}
++
+ 	if n.stateStore != nil {
+ 		n.Logger.Info("Closing statestore")
+ 		if err := n.stateStore.Close(); err != nil {
+ 			n.Logger.Error("problem closing statestore", "err", err)
+ 		}
+ 	}
++
++	if n.tracer != nil {
++		n.tracer.Stop()
++	}
++
++	if n.pyroscopeProfiler != nil {
++		if err := n.pyroscopeProfiler.Stop(); err != nil {
++			n.Logger.Error("Pyroscope profiler Stop", "err", err)
++		}
++	}
++
++	if n.pyroscopeTracer != nil {
++		if err := n.pyroscopeTracer.Shutdown(context.Background()); err != nil {
++			n.Logger.Error("Pyroscope tracer Shutdown", "err", err)
++		}
++	}
++
+ 	if n.evidencePool != nil {
+ 		n.Logger.Info("Closing evidencestore")
+ 		if err := n.EvidencePool().Close(); err != nil {
+@@ -1117,11 +1228,8 @@ func (n *Node) ConfigureRPC() error {
+ 
+ 		Config: *n.config.RPC,
+ 	})
+-	if err := rpccore.InitGenesisChunks(); err != nil {
+-		return err
+-	}
+ 
+-	return nil
++	return rpccore.InitGenesisChunks()
+ }
+ 
+ func (n *Node) startRPC() ([]net.Listener, error) {
+@@ -1353,6 +1461,7 @@ func makeNodeInfo(
+ 	txIndexer txindex.TxIndexer,
+ 	genDoc *types.GenesisDoc,
+ 	state sm.State,
++	softwareVersion string,
+ ) (p2p.DefaultNodeInfo, error) {
+ 	txIndexerStatus := "on"
+ 	if _, ok := txIndexer.(*null.TxIndex); ok {
+@@ -1379,7 +1488,7 @@ func makeNodeInfo(
+ 		),
+ 		DefaultNodeID: nodeKey.ID(),
+ 		Network:       genDoc.ChainID,
+-		Version:       version.TMCoreSemVer,
++		Version:       softwareVersion,
+ 		Channels: []byte{
+ 			bcChannel,
+ 			cs.StateChannel, cs.DataChannel, cs.VoteChannel, cs.VoteSetBitsChannel,
+@@ -1398,6 +1507,10 @@ func makeNodeInfo(
+ 		nodeInfo.Channels = append(nodeInfo.Channels, pex.PexChannel)
+ 	}
+ 
++	if config.Mempool.Version == cfg.MempoolV2 {
++		nodeInfo.Channels = append(nodeInfo.Channels, mempoolv2.MempoolStateChannel)
++	}
++
+ 	lAddr := config.P2P.ExternalAddress
+ 
+ 	if lAddr == "" {
+@@ -1429,7 +1542,7 @@ func LoadStateFromDBOrGenesisDocProvider(
+ 			return sm.State{}, nil, err
+ 		}
+ 		// save genesis doc to prevent a certain class of user errors (e.g. when it
+-		// was changed, accidentally or not). Also good for audit trail.
++		// was changed, accidentally or not). Also, good for audit trail.
+ 		if err := saveGenesisDoc(stateDB, genDoc); err != nil {
+ 			return sm.State{}, nil, err
+ 		}
+@@ -1467,11 +1580,8 @@ func saveGenesisDoc(db dbm.DB, genDoc *types.GenesisDoc) error {
+ 	if err != nil {
+ 		return fmt.Errorf("failed to save genesis doc due to marshaling error: %w", err)
+ 	}
+-	if err := db.SetSync(genesisDocKey, b); err != nil {
+-		return err
+-	}
+ 
+-	return nil
++	return db.SetSync(genesisDocKey, b)
+ }
+ 
+ func createAndStartPrivValidatorSocketClient(

@@ -1,0 +1,65 @@
+diff --git a/abci/client/local_client.go b/abci/client/local_client.go
+index b874e1b62..5b615aa18 100644
+--- a/abci/client/local_client.go
++++ b/abci/client/local_client.go
+@@ -207,6 +207,32 @@ func (app *localClient) ApplySnapshotChunkAsync(req types.RequestApplySnapshotCh
+ 	)
+ }
+ 
++func (app *localClient) PrepareProposalAsync(
++	req types.RequestPrepareProposal,
++) *ReqRes {
++	app.mtx.Lock()
++	defer app.mtx.Unlock()
++
++	res := app.Application.PrepareProposal(req)
++	return app.callback(
++		types.ToRequestPrepareProposal(req),
++		types.ToResponsePrepareProposal(res),
++	)
++}
++
++func (app *localClient) ProcessProposalAsync(
++	req types.RequestProcessProposal,
++) *ReqRes {
++	app.mtx.Lock()
++	defer app.mtx.Unlock()
++
++	res := app.Application.ProcessProposal(req)
++	return app.callback(
++		types.ToRequestProcessProposal(req),
++		types.ToResponseProcessProposal(res),
++	)
++}
++
+ //-------------------------------------------------------
+ 
+ func (app *localClient) FlushSync() error {
+@@ -323,6 +349,27 @@ func (app *localClient) ApplySnapshotChunkSync(
+ 	return &res, nil
+ }
+ 
++func (app *localClient) PrepareProposalSync(
++	req types.RequestPrepareProposal,
++) (*types.ResponsePrepareProposal, error) {
++
++	app.mtx.Lock()
++	defer app.mtx.Unlock()
++
++	res := app.Application.PrepareProposal(req)
++	return &res, nil
++}
++
++func (app *localClient) ProcessProposalSync(
++	req types.RequestProcessProposal,
++) (*types.ResponseProcessProposal, error) {
++	app.mtx.Lock()
++	defer app.mtx.Unlock()
++
++	res := app.Application.ProcessProposal(req)
++	return &res, nil
++}
++
+ //-------------------------------------------------------
+ 
+ func (app *localClient) callback(req *types.Request, res *types.Response) *ReqRes {

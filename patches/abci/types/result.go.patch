@@ -1,0 +1,26 @@
+diff --git a/abci/types/result.go b/abci/types/result.go
+index 53acdb906..d1a9d4cf7 100644
+--- a/abci/types/result.go
++++ b/abci/types/result.go
+@@ -41,6 +41,21 @@ func (r ResponseQuery) IsErr() bool {
+ 	return r.Code != CodeTypeOK
+ }
+ 
++// IsUnknown returns true if Code is Unknown
++func (r ResponseProcessProposal) IsUnknown() bool {
++	return r.Result == ResponseProcessProposal_UNKNOWN
++}
++
++// IsOK returns true if Code is OK
++func (r ResponseProcessProposal) IsOK() bool {
++	return r.Result == ResponseProcessProposal_ACCEPT
++}
++
++// IsRejected returns true if this ResponseProcessProposal was rejected
++func (r ResponseProcessProposal) IsRejected() bool {
++	return r.Result == ResponseProcessProposal_REJECT
++}
++
+ //---------------------------------------------------------------------------
+ // override JSON marshaling so we emit defaults (ie. disable omitempty)
+ 

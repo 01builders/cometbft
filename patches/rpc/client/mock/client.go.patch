@@ -1,0 +1,38 @@
+diff --git a/rpc/client/mock/client.go b/rpc/client/mock/client.go
+index ec31e0d9f..7566be890 100644
+--- a/rpc/client/mock/client.go
++++ b/rpc/client/mock/client.go
+@@ -54,7 +54,7 @@ type Call struct {
+ 	Error    error
+ }
+ 
+-// GetResponse will generate the apporiate response for us, when
++// GetResponse will generate the appropriate response for us, when
+ // using the Call struct to configure a Mock handler.
+ //
+ // When configuring a response, if only one of Response or Error is
+@@ -169,6 +169,24 @@ func (c Client) Commit(ctx context.Context, height *int64) (*ctypes.ResultCommit
+ 	return core.Commit(&rpctypes.Context{}, height)
+ }
+ 
++func (c Client) DataCommitment(
++	ctx context.Context,
++	start uint64,
++	end uint64,
++) (*ctypes.ResultDataCommitment, error) {
++	return core.DataCommitment(&rpctypes.Context{}, start, end)
++}
++
++func (c Client) DataRootInclusionProof(
++	ctx context.Context,
++	height uint64,
++	start uint64,
++	end uint64,
++) (*ctypes.ResultDataRootInclusionProof, error) {
++	//nolint:gosec
++	return core.DataRootInclusionProof(&rpctypes.Context{}, int64(height), start, end)
++}
++
+ func (c Client) Validators(ctx context.Context, height *int64, page, perPage *int) (*ctypes.ResultValidators, error) {
+ 	return core.Validators(&rpctypes.Context{}, height, page, perPage)
+ }

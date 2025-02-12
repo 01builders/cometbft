@@ -1,0 +1,13 @@
+diff --git a/rpc/client/main_test.go b/rpc/client/main_test.go
+index b5bfbd718..3f72e92b2 100644
+--- a/rpc/client/main_test.go
++++ b/rpc/client/main_test.go
+@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
+ 
+ 	app := kvstore.NewPersistentKVStoreApplication(dir)
+ 	// If testing block event generation
+-	// app.SetGenBlockEvents() // needs to be called here (see TestBlockSearch in rpc_test.go)
++	// app.SetGenBlockEvents() needs to be called here
+ 	node = rpctest.StartTendermint(app)
+ 
+ 	code := m.Run()

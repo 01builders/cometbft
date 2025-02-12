@@ -1,0 +1,33 @@
+diff --git a/types/part_set_test.go b/types/part_set_test.go
+index fa723ddec..392084cc7 100644
+--- a/types/part_set_test.go
++++ b/types/part_set_test.go
+@@ -137,12 +137,16 @@ func TestPartValidateBasic(t *testing.T) {
+ 			pt.Index = 1
+ 			pt.Bytes = make([]byte, BlockPartSizeBytes-1)
+ 			pt.Proof.Total = 2
++			pt.Proof.Index = 1
+ 		}, false},
+ 		{"Too small inner part", func(pt *Part) {
+ 			pt.Index = 0
+ 			pt.Bytes = make([]byte, BlockPartSizeBytes-1)
++			pt.Proof.Index = 1
+ 			pt.Proof.Total = 2
+-		}, true},
++		},
++
++			true},
+ 		{"Too big proof", func(pt *Part) {
+ 			pt.Proof = merkle.Proof{
+ 				Total:    2,
+@@ -150,6 +154,10 @@ func TestPartValidateBasic(t *testing.T) {
+ 				LeafHash: make([]byte, 1024*1024),
+ 			}
+ 		}, true},
++		{"Index mismatch", func(pt *Part) {
++			pt.Index = 1
++			pt.Proof.Index = 0
++		}, true},
+ 	}
+ 
+ 	for _, tc := range testCases {
