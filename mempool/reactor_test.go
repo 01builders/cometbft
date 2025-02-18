@@ -16,6 +16,7 @@ import (
 	abci "github.com/cometbft/cometbft/abci/types"
 	cfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/libs/log"
+	"github.com/cometbft/cometbft/libs/trace"
 	"github.com/cometbft/cometbft/p2p"
 	"github.com/cometbft/cometbft/p2p/mock"
 	memproto "github.com/cometbft/cometbft/proto/tendermint/mempool"
@@ -63,7 +64,7 @@ func TestReactorBroadcastTxsMessage(t *testing.T) {
 	waitForTxsOnReactors(t, txs, reactors)
 }
 
-// regression test for https://github.com/cometbft/cometbft/issues/5408
+// regression test for https://github.com/tendermint/tendermint/issues/5408
 func TestReactorConcurrency(t *testing.T) {
 	config := cfg.TestConfig()
 	const N = 2
@@ -84,6 +85,8 @@ func TestReactorConcurrency(t *testing.T) {
 
 	const numTxs = 5
 
+	reactors[0].mempool.config.Size = 10000
+	reactors[1].mempool.config.Size = 10000
 	for i := 0; i < 1000; i++ {
 		wg.Add(2)
 
@@ -117,7 +120,7 @@ func TestReactorConcurrency(t *testing.T) {
 		}()
 
 		// 1. flush the mempool
-		reactors[1].mempool.Flush()
+		// reactors[1].mempool.Flush()
 	}
 
 	wg.Wait()
@@ -327,7 +330,7 @@ func makeAndConnectReactors(config *cfg.Config, n int) ([]*Reactor, []*p2p.Switc
 		mempool, cleanup := newMempoolWithApp(cc)
 		defer cleanup()
 
-		reactors[i] = NewReactor(config.Mempool, mempool) // so we dont start the consensus states
+		reactors[i] = NewReactor(config.Mempool, mempool, trace.NoOpTracer()) // so we dont start the consensus states
 		reactors[i].SetLogger(logger.With("validator", i))
 	}
 

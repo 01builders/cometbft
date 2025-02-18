@@ -138,7 +138,7 @@ func newReactor(
 
 		lastExtCommit := seenExtCommit.Clone()
 
-		thisBlock := state.MakeBlock(blockHeight, nil, lastExtCommit.ToCommit(), nil, state.Validators.Proposer.Address)
+		thisBlock := state.MakeBlock(blockHeight, types.MakeData([]types.Tx{}), lastExtCommit.ToCommit(), nil, state.Validators.Proposer.Address)
 
 		thisParts, err := thisBlock.MakePartSet(types.BlockPartSizeBytes)
 		require.NoError(t, err)
@@ -165,7 +165,7 @@ func newReactor(
 			ExtendedSignatures: []types.ExtendedCommitSig{vote.ExtendedCommitSig()},
 		}
 
-		state, err = blockExec.ApplyBlock(state, blockID, thisBlock)
+		state, err = blockExec.ApplyBlock(state, blockID, thisBlock, lastExtCommit.ToCommit())
 		if err != nil {
 			panic(fmt.Errorf("error apply block: %w", err))
 		}
@@ -523,6 +523,7 @@ func (bcR *ByzantineReactor) respondToPeer(msg *bcproto.BlockRequest, src p2p.Pe
 // Receive implements Reactor by handling 4 types of messages (look below).
 // Copied unchanged from reactor.go so the correct respondToPeer is called.
 func (bcR *ByzantineReactor) Receive(e p2p.Envelope) { //nolint: dupl
+	fmt.Println("Receive", e.Message)
 	if err := ValidateMsg(e.Message); err != nil {
 		bcR.Logger.Error("Peer sent us invalid msg", "peer", e.Src, "msg", e.Message, "err", err)
 		bcR.Switch.StopPeerForError(e.Src, err)
